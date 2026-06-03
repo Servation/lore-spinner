@@ -1,0 +1,666 @@
+import os
+import json
+import random
+from typing import Dict, Callable, List, Optional
+from agents.base_agent import BaseAgent
+from agents.subagents.world_keeper import WorldKeeper
+from agents.subagents.faction_weaver import FactionWeaver
+from agents.subagents.encounter_architect import EncounterArchitect
+from agents.subagents.lore_keeper import LoreKeeper
+from game_engine.character import Character
+from game_engine.world import WorldState
+from game_engine.dice import roll_check
+from game_engine.combat import resolve_combat_turn, Enemy
+from persistence.log_manager import write_dm_log
+
+class DMAgent(BaseAgent):
+    def __init__(self, llm_client, campaign_slug: str, budget_mode: bool = False, verbose: bool = False):
+        self.campaign_slug = campaign_slug
+        self.budget_mode = budget_mode
+        self.verbose = verbose
+        self.llm_client = llm_client
+        
+        # Instantiate subagents
+        self.world_keeper = WorldKeeper(llm_client, campaign_slug)
+        self.faction_weaver = FactionWeaver(llm_client, campaign_slug)
+        self.encounter_architect = EncounterArchitect(llm_client, campaign_slug)
+        self.lore_keeper = LoreKeeper(llm_client, campaign_slug)
+        
+        self.tools = self._get_tools()
+        self.system_instruction = "" # Will be built dynamically before running
+        super().__init__(llm_client, self.tools, "")
+
+    def _get_tools(self) -> Dict[str, Callable[[str], str]]:
+        def get_character_sheet(dummy: str) -> str:
+            path = os.path.join("saves", self.campaign_slug, "character.json")
+            if not os.path.exists(path):
+                return "Error: Character state not found."
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+
+        def get_world_details(dummy: str) -> str:
+            path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            if not os.path.exists(path):
+                return "Error: World state not found."
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+
+        def get_active_encounter(dummy: str) -> str:
+            path = os.path.join("saves", self.campaign_slug, "encounters.json")
+            if not os.path.exists(path):
+                return "No encounter setup."
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            ae = data.get("active_encounter")
+            if not ae:
+                return "No active encounter/fight is currently happening."
+            return json.dumps(ae)
+
+        def roll_ability_check(args: str) -> str:
+            """Format: 'tag_name | DC'. E.g. 'stealth | 12' or fallback 'stealth'"""
+            if "|" in args:
+                parts = args.split("|", 1)
+                tag_name = parts[0].strip()
+                try:
+                    dc = int(parts[1].strip())
+                except ValueError:
+                    return "Error: DC must be an integer."
+            else:
+                tag_name = args.strip()
+                dc = 12
+                
+            # Load character
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char_data = json.load(f)
+            char = Character.from_dict(char_data)
+            
+            # Load world to get environmental mods
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world_data = json.load(f)
+            world = WorldState.from_dict(world_data)
+            
+            # Check modifier
+            mod = char.get_effective_modifier(tag_name, world.environmental_modifiers)
+            res = roll_check(mod, dc)
+            
+            # If check succeeded, tick usage (learn-by-doing)
+            prog_triggered = False
+            new_mod = mod
+            if res["success"]:
+                prog_triggered, new_mod = char.abilities.tick_usage(tag_name)
+                
+            # Save character back
+            with open(char_path, "w", encoding="utf-8") as f:
+                json.dump(char.to_dict(), f, indent=4)
+                
+            res["progression_triggered"] = prog_triggered
+            res["new_modifier"] = new_mod
+            return json.dumps(res)
+
+        def equip_item(item_name: str) -> str:
+            """Usage: Action: equip_item: item_name"""
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char = Character.from_dict(json.load(f))
+            
+            err = char.equip(item_name)
+            if err:
+                return f"Error: {err}"
+                
+            with open(char_path, "w", encoding="utf-8") as f:
+                json.dump(char.to_dict(), f, indent=4)
+                
+            return f"Successfully equipped '{item_name}'."
+
+        def heal_character(amount_str: str) -> str:
+            """Usage: Action: heal_character: amount"""
+            try:
+                amount = int(amount_str.strip())
+            except ValueError:
+                return "Error: Amount must be an integer."
+                
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char = Character.from_dict(json.load(f))
+                
+            healed = char.heal(amount)
+            
+            with open(char_path, "w", encoding="utf-8") as f:
+                json.dump(char.to_dict(), f, indent=4)
+                
+            return f"Healed character by {healed} HP. Current HP: {char.hp}/{char.max_hp}."
+
+        def apply_combat_turn(action_tag_name: str) -> str:
+            """Format: 'action_tag_name' (e.g. 'melee_weapons')"""
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char = Character.from_dict(json.load(f))
+                
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world = WorldState.from_dict(json.load(f))
+                
+            enc_path = os.path.join("saves", self.campaign_slug, "encounters.json")
+            with open(enc_path, "r", encoding="utf-8") as f:
+                enc_data = json.load(f)
+                
+            ae = enc_data.get("active_encounter")
+            if not ae or not ae.get("enemy"):
+                return "Error: No active enemy to fight."
+                
+            enemy = Enemy.from_dict(ae["enemy"])
+            
+            # Resolve exchange
+            res = resolve_combat_turn(char, action_tag_name, enemy, world.environmental_modifiers)
+            
+            # Update objects and save
+            ae["enemy"] = enemy.to_dict()
+            if res["enemy_dead"]:
+                enc_data["active_encounter"] = None
+                # Add loot if any exists in recent_loot to player inventory
+                loot_received = []
+                for item_dict in enc_data.get("recent_loot", []):
+                    from game_engine.item_system import Item
+                    item = Item.from_dict(item_dict)
+                    char.add_item(item)
+                    loot_received.append(item.name)
+                enc_data["recent_loot"] = []
+                res["loot_dropped"] = loot_received
+            else:
+                enc_data["active_encounter"] = ae
+                
+            with open(char_path, "w", encoding="utf-8") as f:
+                json.dump(char.to_dict(), f, indent=4)
+            with open(enc_path, "w", encoding="utf-8") as f:
+                json.dump(enc_data, f, indent=4)
+                
+            return json.dumps(res)
+
+        def trigger_world_keeper(query: str) -> str:
+            if self.budget_mode:
+                return self.world_keeper.heartbeat(budget_mode=True)
+            return self.world_keeper.run(query, max_turns=3, verbose=False, agent_name="WorldKeeper")
+
+        def trigger_faction_weaver(query: str) -> str:
+            if self.budget_mode:
+                return self.faction_weaver.heartbeat(budget_mode=True)
+            return self.faction_weaver.run(query, max_turns=3, verbose=False, agent_name="FactionWeaver")
+
+        def trigger_encounter_architect(query: str) -> str:
+            # We always run EncounterArchitect as it sets up battles (crucial)
+            return self.encounter_architect.run(query, max_turns=3, verbose=False, agent_name="EncounterArchitect")
+
+        def trigger_lore_keeper(query: str) -> str:
+            # Always run LoreKeeper as it handles quest rewards/codex unlocks
+            return self.lore_keeper.run(query, max_turns=3, verbose=False, agent_name="LoreKeeper")
+
+        def modify_inventory(args: str) -> str:
+            """Format: 'add | Item Name | optional description | optional slot | optional consumable | optional charges' or 'remove | Item Name'
+            Examples:
+            - Action: modify_inventory: add | Steel Dagger | A sharp steel blade | weapon
+            - Action: modify_inventory: add | Healing Salve | Heals minor burns | None | True | 2
+            - Action: modify_inventory: remove | Backstory Trinket
+            """
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 2:
+                return "Error: Format must be 'add | Item Name | [desc] | [slot] | [consumable] | [charges]' or 'remove | Item Name'"
+                
+            op = parts[0].lower()
+            item_name = parts[1]
+            
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char = Character.from_dict(json.load(f))
+                
+            if op == "add":
+                desc = parts[2] if len(parts) > 2 else "A newly acquired item."
+                slot = parts[3] if len(parts) > 3 and parts[3].lower() != "none" else None
+                if slot and slot.lower() not in ["weapon", "armor", "accessory"]:
+                    slot = None
+                    
+                consumable = False
+                if len(parts) > 4:
+                    consumable = parts[4].lower() in ["true", "yes", "1"]
+                    
+                charges = 0
+                if len(parts) > 5:
+                    try:
+                        charges = int(parts[5])
+                    except ValueError:
+                        pass
+                
+                tag_mods = {}
+                if consumable:
+                    import re
+                    match = re.search(r"heals?\s+(\d+)", desc.lower())
+                    if match:
+                        tag_mods["heal"] = int(match.group(1))
+                    else:
+                        tag_mods["heal"] = 8  # default healing amount
+                        
+                from game_engine.item_system import Item
+                item = Item(name=item_name, description=desc, slot=slot, consumable=consumable, charges=charges, tag_modifiers=tag_mods)
+                char.add_item(item)
+                
+                with open(char_path, "w", encoding="utf-8") as f:
+                    json.dump(char.to_dict(), f, indent=4)
+                return f"Successfully added '{item_name}' to inventory."
+                
+            elif op == "remove":
+                success = char.remove_item(item_name)
+                if not success:
+                    return f"Error: '{item_name}' not found in inventory."
+                    
+                with open(char_path, "w", encoding="utf-8") as f:
+                    json.dump(char.to_dict(), f, indent=4)
+                return f"Successfully removed '{item_name}' from inventory."
+            else:
+                return "Error: Operation must be 'add' or 'remove'."
+
+        def disassemble_item(item_name: str) -> str:
+            """Usage: Action: disassemble_item: Rusty Blade"""
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char = Character.from_dict(json.load(f))
+                
+            clean_name = item_name.strip().lower()
+            target_item = None
+            for item in char.inventory:
+                if item.name.lower() == clean_name:
+                    target_item = item
+                    break
+                    
+            if not target_item:
+                return f"Error: Item '{item_name}' not found in inventory."
+                
+            char.inventory.remove(target_item)
+            
+            yield_items = []
+            name_lower = target_item.name.lower()
+            desc_lower = target_item.description.lower()
+            slot = target_item.slot.lower() if target_item.slot else ""
+            
+            from game_engine.item_system import Item
+            if "electronic" in name_lower or "electronic" in desc_lower or "wire" in name_lower or "battery" in name_lower:
+                yield_items.append(Item(name="Scrap Electronics", description="Various circuit boards and electrical components."))
+                yield_items.append(Item(name="Copper Wire", description="Conductive copper wiring."))
+            elif slot == "weapon" or "iron" in name_lower or "steel" in name_lower or "metal" in name_lower or "blade" in name_lower:
+                yield_items.append(Item(name="Junk Metal", description="Bent metal shards and rusty plates."))
+            elif slot == "armor" or "leather" in name_lower or "hide" in name_lower or "skin" in name_lower:
+                yield_items.append(Item(name="Scrap Leather", description="Torn pieces of cured hide."))
+            elif "cloth" in name_lower or "fabric" in name_lower or "robe" in name_lower or "cloak" in name_lower:
+                yield_items.append(Item(name="Scrap Cloth", description="Tattered rags and fiber weave."))
+            else:
+                yield_items.append(Item(name="Junk Scrap", description="Miscellaneous unusable bits and pieces."))
+                
+            for item in yield_items:
+                char.add_item(item)
+                
+            with open(char_path, "w", encoding="utf-8") as f:
+                json.dump(char.to_dict(), f, indent=4)
+                
+            yield_names = [item.name for item in yield_items]
+            return f"Disassembled '{target_item.name}' into: {', '.join(yield_names)}."
+
+        def use_consumable_item(item_name: str) -> str:
+            """Usage: Action: use_consumable_item: Healing Potion"""
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char = Character.from_dict(json.load(f))
+                
+            clean_name = item_name.strip().lower()
+            target_item = None
+            for item in char.inventory:
+                if item.name.lower() == clean_name:
+                    target_item = item
+                    break
+                    
+            if not target_item:
+                return f"Error: Item '{item_name}' not found in inventory."
+                
+            if not target_item.consumable:
+                return f"Error: Item '{target_item.name}' is not consumable."
+                
+            effect_msg = []
+            heal_amt = target_item.tag_modifiers.get("heal") or target_item.tag_modifiers.get("hp")
+            if heal_amt:
+                healed = char.heal(heal_amt)
+                effect_msg.append(f"Healed {healed} HP")
+                
+            other_mods = {k: v for k, v in target_item.tag_modifiers.items() if k not in ["heal", "hp"]}
+            if other_mods:
+                effect_name = f"Consumable: {target_item.name}"
+                char.status_effects.append({
+                    "name": effect_name,
+                    "modifiers": other_mods,
+                    "duration": 3
+                })
+                effect_msg.append(f"Applied status effect '{effect_name}' ({other_mods}) for 3 turns")
+                
+            if target_item.charges > 1:
+                target_item.charges -= 1
+                effect_msg.append(f"Used 1 charge. {target_item.charges} charges remaining.")
+            else:
+                char.inventory.remove(target_item)
+                effect_msg.append("Item consumed and removed from inventory.")
+                
+            with open(char_path, "w", encoding="utf-8") as f:
+                json.dump(char.to_dict(), f, indent=4)
+                
+            return f"Successfully used '{target_item.name}': " + ", ".join(effect_msg)
+
+        def get_faction_details(dummy: str) -> str:
+            """Usage: Action: get_faction_details"""
+            path = os.path.join("saves", self.campaign_slug, "factions.json")
+            if not os.path.exists(path):
+                return "No factions or NPC records found."
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+
+        def modify_relationship(args: str) -> str:
+            """Format: 'add | Name | Description' or 'remove | Name'
+            Usage: Action: modify_relationship: add | Aria | Love Interest - tech scavenger
+            """
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 2:
+                return "Error: Format must be 'add | Name | Description' or 'remove | Name'"
+                
+            op = parts[0].lower()
+            name = parts[1]
+            
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char = Character.from_dict(json.load(f))
+                
+            if op == "add":
+                desc = parts[2] if len(parts) > 2 else "Acquaintance"
+                char.relationships[name] = desc
+                with open(char_path, "w", encoding="utf-8") as f:
+                    json.dump(char.to_dict(), f, indent=4)
+                return f"Successfully added/updated relationship for '{name}'."
+            elif op == "remove":
+                if name in char.relationships:
+                    del char.relationships[name]
+                    with open(char_path, "w", encoding="utf-8") as f:
+                        json.dump(char.to_dict(), f, indent=4)
+                    return f"Successfully removed relationship for '{name}'."
+                else:
+                    return f"Error: No relationship found for '{name}'."
+            else:
+                return "Error: Operation must be 'add' or 'remove'."
+
+        def modify_location(args: str) -> str:
+            """Format: 'add | Name | Type | Description' or 'update | Name | Description'
+            Types: 'city', 'natural wonder', 'point of interest', 'dungeon', etc.
+            Example: Action: modify_location: add | Obsidian Spire | natural wonder | A massive towering peak of obsidian magma rock.
+            """
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 2:
+                return "Error: Format must be 'add | Name | Type | Description' or 'update | Name | Description'"
+                
+            op = parts[0].lower()
+            name = parts[1]
+            
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world = WorldState.from_dict(json.load(f))
+                
+            if op == "add":
+                loc_type = parts[2] if len(parts) > 2 else "point of interest"
+                desc = parts[3] if len(parts) > 3 else "A newly discovered point of interest."
+                
+                # Check if already exists, if so update it
+                exists = False
+                for loc in world.discovered_locations:
+                    if loc.name.lower() == name.lower():
+                        loc.description = desc
+                        loc.type = loc_type
+                        exists = True
+                        break
+                if not exists:
+                    from game_engine.world import Location
+                    loc = Location(name=name, type=loc_type, description=desc, discovered_turn=world.turn_count)
+                    world.discovered_locations.append(loc)
+                    
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                return f"Successfully registered discovered location '{name}'."
+                
+            elif op == "update":
+                desc = parts[2] if len(parts) > 2 else ""
+                for loc in world.discovered_locations:
+                    if loc.name.lower() == name.lower():
+                        loc.description = desc
+                        with open(world_path, "w", encoding="utf-8") as f:
+                            json.dump(world.to_dict(), f, indent=4)
+                        return f"Successfully updated location '{name}'."
+                return f"Error: Location '{name}' not found."
+            else:
+                return "Error: Operation must be 'add' or 'update'."
+
+        def write_log_entry(text: str) -> str:
+            # Log compaction uses llm_client
+            return write_dm_log(self.campaign_slug, text, self.llm_client)
+
+        return {
+            "get_character_sheet": get_character_sheet,
+            "get_world_details": get_world_details,
+            "get_active_encounter": get_active_encounter,
+            "roll_ability_check": roll_ability_check,
+            "equip_item": equip_item,
+            "heal_character": heal_character,
+            "apply_combat_turn": apply_combat_turn,
+            "trigger_world_keeper": trigger_world_keeper,
+            "trigger_faction_weaver": trigger_faction_weaver,
+            "trigger_encounter_architect": trigger_encounter_architect,
+            "trigger_lore_keeper": trigger_lore_keeper,
+            "modify_inventory": modify_inventory,
+            "disassemble_item": disassemble_item,
+            "use_consumable_item": use_consumable_item,
+            "get_faction_details": get_faction_details,
+            "modify_relationship": modify_relationship,
+            "modify_location": modify_location,
+            "write_log_entry": write_log_entry
+        }
+
+    def _build_dynamic_prompt(self) -> str:
+        # Load world state
+        world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+        with open(world_path, "r", encoding="utf-8") as f:
+            world_data = json.load(f)
+        world = WorldState.from_dict(world_data)
+        
+        genre = world.setting_genre
+        traits = ", ".join(world.dm_traits)
+        
+        return f"""You are the Dungeon Master (DM) for a text-based RPG set in the genre '{genre}'.
+Your DM personality traits are: {traits}. Maintain this narrative voice and styling at all times!
+
+Your task is to respond to the player's action. You run in a ReAct loop.
+If you need to call a tool, you MUST output a single 'Thought:' line, followed by a single 'Action:' line, and then the word 'PAUSE' on a new line. You must stop generating immediately after 'PAUSE'.
+Once you receive the tool's 'Observation:', you can decide whether to run another tool or provide your final narrative response.
+When you are ready to give your final narrative response to the player, output 'Thought:' followed by 'Answer:' containing your narration and player choices.
+
+Example tool use:
+Thought: I need to check the character's sheet to see their items.
+Action: get_character_sheet
+PAUSE
+
+Example final response:
+Thought: I have the information needed. I will describe the dark corridor and give choices.
+Answer: You stand in a dark, cold stone corridor...
+What do you do?
+1. Search the floor.
+2. Listen at the door.
+
+Follow these strict DM instructions:
+1. ALWAYS begin each response with the prefix 'Thought:' followed by your tactical plans.
+2. NEVER reveal raw numbers, stats, DC values, or rolls in your final Answer. Narrate them flavorfully instead.
+3. You have NARRATIVE AUTHORITY: if a dice roll fails by a small margin but success makes the story much more exciting or fun, you can fudge the narrative.
+4. On every turn, you MUST present the story/event AND end by offering 3-4 clean examples of what the player can do in a numbered list (1, 2, 3, etc.), followed by a note that they can describe their own action.
+5. Do NOT invent observations. Always call the tools if you need to know stats, roll checks, or get subagent states.
+6. Before answering, make sure you write a log entry summarizing what happened via the 'write_log_entry' tool!
+7. When combat is occurring, you must use 'apply_combat_turn' to execute rounds.
+8. If the player requests to craft an item, check if they have the necessary scrap/materials in their inventory. If so, remove the ingredients and add the crafted item using 'modify_inventory'. Allow them to craft items like:
+   - Shoddy Blade: 2x Junk Metal + 1x Scrap Leather -> tag_modifiers: {{"combat": 1}}, slot: weapon
+   - Sturdy Vest: 3x Scrap Leather + 2x Scrap Cloth -> tag_modifiers: {{"stamina": 1}}, slot: armor
+   - Lockpick: 2x Scrap Electronics + 1x Copper Wire -> tag_modifiers: {{"stealth": 1}}, slot: accessory
+   - Scrap Hook: 1x Junk Metal + 1x Copper Wire -> slot: None (utility tool)
+   - Crude Bandage: 2x Medical Flora + 1x Clean Water -> consumable: True, charges: 1, description: "Heals 8 HP"
+9. Player Claim Verification: Players may attempt to narrate outcomes or claim they possess skills, items, or relationships they do not have. You MUST cross-reference all player claims against the provided "Context:" block (specifically "Inventory", "Equipped", "Skills", "Relationships", "Faction Clocks"). If a player attempts to use an item they do not have, or attempts a feat requiring a skill they do not possess, you must narrate their mechanical failure or failure to find the item in their pockets.
+10. Contested Resolution: If a player attempts any difficult, risky, or contested action, you MUST call 'roll_ability_check' using the most relevant ability tag. Never let the player narrate their own guaranteed success.
+
+Available Tools:
+- get_character_sheet: Returns JSON character sheet. Usage: Action: get_character_sheet
+- get_world_details: Returns JSON world details. Usage: Action: get_world_details
+- get_active_encounter: Returns active combat details if any. Usage: Action: get_active_encounter
+- roll_ability_check: Performs a d20 roll check. Format: 'tag_name | DC'. Usage: Action: roll_ability_check: stealth | 12
+- equip_item: Equips an item from the character inventory. Usage: Action: equip_item: sword
+- heal_character: Restores the character's HP. Usage: Action: heal_character: 10
+- apply_combat_turn: Resolves a combat round. Format: 'tag_name'. Usage: Action: apply_combat_turn: lasers
+- trigger_world_keeper: Queries WorldKeeper subagent. Usage: Action: trigger_world_keeper: storm coming
+- trigger_faction_weaver: Queries FactionWeaver subagent. Usage: Action: trigger_faction_weaver: player attacked gang
+- trigger_encounter_architect: Queries EncounterArchitect. Usage: Action: trigger_encounter_architect: spawn bandit
+- trigger_lore_keeper: Queries LoreKeeper. Usage: Action: trigger_lore_keeper: player found tablet
+- modify_inventory: Adds or removes items. Format: 'add | Name | [desc] | [slot] | [consumable] | [charges]' or 'remove | Name'. Usage: Action: modify_inventory: add | Healing Salve | Heals 10 HP | None | True | 2
+- disassemble_item: Breaks down an item in inventory into raw salvage components (Junk Metal, Scrap Leather, Scrap Electronics, wire, cloth). Usage: Action: disassemble_item: rusty metal plate
+- use_consumable_item: Uses a consumable item (e.g. healing items or temporary stat boosts). Usage: Action: use_consumable_item: healing salve
+- get_faction_details: Returns active factions and NPC databases. Usage: Action: get_faction_details
+- modify_relationship: Adds or removes long-term relationships (love interest, rival, friend). Format: 'add | Name | Desc' or 'remove | Name'. Usage: Action: modify_relationship: add | Sarah | Love Interest - Rebel courier
+- modify_location: Adds or updates a discovered city, landmark, ruins, wonder, or POI. Format: 'add | Name | Type | Desc' or 'update | Name | Desc'. Usage: Action: modify_location: add | Cinder Spire | natural wonder | Burning glass pillar.
+- write_log_entry: Saves a narrative bullet summary. Usage: Action: write_log_entry: Escaped the corporate droid in the noodle shop.
+"""
+
+    def process_turn(self, player_action: str) -> str:
+        """Processes a player's action turn. Coordinates heartbeats and subagents."""
+        # 1. Update turn count
+        world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+        with open(world_path, "r", encoding="utf-8") as f:
+            world_data = json.load(f)
+        world = WorldState.from_dict(world_data)
+        world.increment_turn()
+        
+        # 2. Check for Heartbeat cycle
+        # We store the next heartbeat target turn in world_state.json if not present
+        heartbeat_target = world.next_heartbeat_turn
+        if not heartbeat_target:
+            heartbeat_target = world.turn_count + random.randint(5, 10)
+            world.next_heartbeat_turn = heartbeat_target
+            
+        heartbeat_occurred = False
+        heartbeat_log = ""
+        if world.turn_count >= heartbeat_target:
+            heartbeat_occurred = True
+            # Roll next target
+            heartbeat_target = world.turn_count + random.randint(5, 10)
+            world.next_heartbeat_turn = heartbeat_target
+            
+            # Fire heartbeats
+            wk_res = self.world_keeper.heartbeat(budget_mode=self.budget_mode)
+            fw_res = self.faction_weaver.heartbeat(budget_mode=self.budget_mode)
+            heartbeat_log = f"\n[Heartbeat Event: {wk_res} {fw_res}]"
+            
+        # Write back world state
+        with open(world_path, "w", encoding="utf-8") as f:
+            json.dump(world.to_dict(), f, indent=4)
+            
+        # 3. Formulate query for DM ReAct loop
+        self.system_instruction = self._build_dynamic_prompt()
+        
+        # Load character sheet to populate context snapshot
+        char_path = os.path.join("saves", self.campaign_slug, "character.json")
+        with open(char_path, "r", encoding="utf-8") as f:
+            char_data = json.load(f)
+        char = Character.from_dict(char_data)
+        
+        hp_pct = (char.hp / char.max_hp) * 100
+        cond = "Healthy" if hp_pct >= 80 else "Wounded" if hp_pct >= 40 else "Near Death"
+        
+        eq_list = [f"{slot}: {item.name}" for slot, item in char.equipped.items()]
+        inv_list = [item.name for item in char.inventory]
+        tags_list = [f"{k} (+{v.modifier})" for k, v in char.abilities.tags.items()]
+        
+        # Load factions to populate context snapshot
+        factions_path = os.path.join("saves", self.campaign_slug, "factions.json")
+        factions_summary = "None"
+        clocks_summary = "None"
+        recent_events_summary = "None"
+        if os.path.exists(factions_path):
+            try:
+                with open(factions_path, "r", encoding="utf-8") as f:
+                    f_data = json.load(f)
+                factions_list = []
+                clocks_list = []
+                for f_id, f_info in f_data.get("factions", {}).items():
+                    npc_names = list(f_info.get("npcs", {}).keys())
+                    npc_str = f" (NPCs: {', '.join(npc_names)})" if npc_names else ""
+                    factions_list.append(f"{f_info.get('name', f_id)} [Rep: {f_info.get('reputation', 0)}]{npc_str}")
+                    
+                    # Read clocks
+                    for clock in f_info.get("clocks", []):
+                        clocks_list.append(f"{f_info.get('name', f_id)}: {clock['name']} ({clock['turns_remaining']} turns remaining)")
+                        
+                if factions_list:
+                    factions_summary = " | ".join(factions_list)
+                if clocks_list:
+                    clocks_summary = " | ".join(clocks_list)
+                    
+                # Read last 3 events
+                events = f_data.get("faction_events", [])
+                if events:
+                    recent_events = events[-3:]
+                    events_list = [f"[{e.get('faction_id')}] {e.get('event')}" for e in recent_events]
+                    recent_events_summary = " | ".join(events_list)
+            except Exception:
+                pass
+                
+        # Load relationships to populate context snapshot
+        rel_list = [f"{name} ({rel})" for name, rel in char.relationships.items()]
+        rel_str = ", ".join(rel_list) if rel_list else "None"
+        
+        # Load discovered locations from world state
+        loc_list = [f"{loc.name} ({loc.type} - {loc.description})" for loc in world.discovered_locations]
+        loc_str = ", ".join(loc_list) if loc_list else "None"
+        
+        # Load active quests
+        active_quests_list = [f"{q.name} ({q.description})" for q in world.active_quests if q.status == "active"]
+        quests_str = ", ".join(active_quests_list) if active_quests_list else "None"
+
+        # Load unlocked lore & secrets
+        lore_path = os.path.join("saves", self.campaign_slug, "lore.json")
+        lore_titles = []
+        secrets_list = []
+        if os.path.exists(lore_path):
+            try:
+                with open(lore_path, "r", encoding="utf-8") as f:
+                    lore_data = json.load(f)
+                lore_titles = [entry.get("title") for entry in lore_data.get("unlocked_lore", [])]
+                secrets_list = lore_data.get("secrets", [])
+            except Exception:
+                pass
+        lore_str = ", ".join(lore_titles) if lore_titles else "None"
+        secrets_str = ", ".join(secrets_list) if secrets_list else "None"
+
+        context_str = (
+            f"Character Status: {cond} | "
+            f"Equipped: {', '.join(eq_list) if eq_list else 'None'} | "
+            f"Inventory: {', '.join(inv_list) if inv_list else 'Empty'} | "
+            f"Skills: {', '.join(tags_list)} | "
+            f"Relationships: {rel_str} | "
+            f"Factions: {factions_summary} | "
+            f"Faction Clocks: {clocks_summary} | "
+            f"Faction Events: {recent_events_summary} | "
+            f"Discovered Locations: {loc_str} | "
+            f"Active Quests: {quests_str} | "
+            f"Unlocked Lore: {lore_str} | "
+            f"Secrets: {secrets_str}"
+        )
+        
+        query = f"Player Action: {player_action}.\nContext: {context_str}"
+        if heartbeat_occurred:
+            query += f" Note: A world heartbeat just triggered: {heartbeat_log}."
+            
+        dm_response = self.run(query, max_turns=6, verbose=self.verbose, agent_name="DM")
+        return dm_response

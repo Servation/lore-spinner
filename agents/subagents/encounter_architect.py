@@ -1,0 +1,113 @@
+import os
+import json
+from typing import Dict, Callable
+from agents.base_agent import BaseAgent
+from game_engine.combat import generate_enemy
+
+class EncounterArchitect(BaseAgent):
+    def __init__(self, llm_client, campaign_slug: str):
+        self.campaign_slug = campaign_slug
+        self.tools = self._get_tools()
+        
+        sys_instruction = """You are the Encounter Architect. You design combat encounters, enemy stat blocks, tactical maneuvers, and loot drops.
+Your job is to spawn enemies appropriate to the current world location and level, and detail their behaviors.
+You do NOT interact with the player directly. You write to the encounters state via tools.
+
+You run in a ReAct loop. When called:
+1. Examine the current threat level, location, and genre.
+2. Spawn an enemy with stats and a tactical behavior description.
+3. Detail loot drops if combat is resolved.
+4. Output your final Answer explaining what encounter was configured.
+
+Your tools are:
+- spawn_encounter: Spawns an enemy. Format: 'enemy_name | threat_level | setting_genre | narrative_desc'. Usage: Action: spawn_encounter: Security Droid | 2 | cyberpunk | A floating droid with electric stun-rods.
+- add_loot: Configures loot. Format: 'item_name | description | slot | tag_modifiers_json'. Usage: Action: add_loot: Reflex Booster | Cybernetic implant giving reflex gains | accessory | {"evasion": 1}
+- clear_encounter: Resets the active encounter when combat is finished. Usage: Action: clear_encounter
+"""
+        super().__init__(llm_client, self.tools, sys_instruction)
+
+    def _get_tools(self) -> Dict[str, Callable[[str], str]]:
+        def spawn_encounter(args: str) -> str:
+            if args.count("|") < 3:
+                return "Error: Format must be 'enemy_name | threat_level | setting_genre | narrative_desc'"
+            parts = args.split("|", 3)
+            name = parts[0].strip()
+            try:
+                threat = int(parts[1].strip())
+            except ValueError:
+                return "Error: Threat level must be an integer."
+            genre = parts[2].strip()
+            desc = parts[3].strip()
+            
+            # Generate the enemy object from our engine
+            enemy = generate_enemy(name, threat, genre)
+            
+            path = os.path.join("saves", self.campaign_slug, "encounters.json")
+            data = {
+                "active_encounter": {
+                    "enemy": enemy.to_dict(),
+                    "description": desc
+                },
+                "recent_loot": []
+            }
+            
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+            return f"Spawned encounter '{name}' (Threat {threat}) successfully."
+
+        def add_loot(args: str) -> str:
+            if args.count("|") < 3:
+                return "Error: Format must be 'item_name | description | slot | tag_modifiers_json'"
+            parts = args.split("|", 3)
+            item_name = parts[0].strip()
+            desc = parts[1].strip()
+            slot = parts[2].strip()
+            if slot.lower() == "none":
+                slot = None
+                
+            try:
+                mods = json.loads(parts[3].strip())
+            except json.JSONDecodeError:
+                return "Error: Tag modifiers must be a valid JSON string, e.g. {\"stealth\": 1}"
+                
+            path = os.path.join("saves", self.campaign_slug, "encounters.json")
+            if not os.path.exists(path):
+                data = {"active_encounter": None, "recent_loot": []}
+            else:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    
+            item = {
+                "name": item_name,
+                "description": desc,
+                "slot": slot,
+                "tag_modifiers": mods,
+                "consumable": slot is None,
+                "charges": 0
+            }
+            data["recent_loot"].append(item)
+            
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+            return f"Added loot item '{item_name}' to pending loot."
+
+        def clear_encounter(dummy: str) -> str:
+            path = os.path.join("saves", self.campaign_slug, "encounters.json")
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                data["active_encounter"] = None
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=4)
+            return "Active encounter cleared."
+
+        return {
+            "spawn_encounter": spawn_encounter,
+            "add_loot": add_loot,
+            "clear_encounter": clear_encounter
+        }
+
+    def generate_fight(self, enemy_name: str, threat_level: int, genre: str, desc: str) -> str:
+        """Helper to directly trigger setup of a fight."""
+        query = f"Setup an encounter for name: {enemy_name}, threat: {threat_level}, genre: {genre}, details: {desc}"
+        return self.run(query, max_turns=3, verbose=False, agent_name="EncounterArchitect")
