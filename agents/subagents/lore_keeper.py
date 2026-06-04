@@ -187,15 +187,18 @@ Your tools are:
         
         res = self.run(query, max_turns=4, verbose=False, agent_name="LoreKeeper")
         
-        # Reload and clear the queue after processing
-        with open(world_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        world = WorldState.from_dict(data)
-        world.escalated_rumors.clear()
-        with open(world_path, "w", encoding="utf-8") as f:
-            json.dump(world.to_dict(), f, indent=4)
-            
-        return "Processed escalated rumors into Narrative Threads."
+        # Only clear the queue if the LLM successfully processed the rumors
+        failed_keywords = ["Failed to arrive", "Error", "turn limit"]
+        if not any(kw in res for kw in failed_keywords):
+            with open(world_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            world = WorldState.from_dict(data)
+            world.escalated_rumors.clear()
+            with open(world_path, "w", encoding="utf-8") as f:
+                json.dump(world.to_dict(), f, indent=4)
+            return "Processed escalated rumors into Narrative Threads."
+        else:
+            return f"LoreKeeper failed to process rumors; queue preserved for next heartbeat. ({res})"
 
     def generate_inciting_incident(self) -> None:
         """Generates the initial Campaign Arc and starting Narrative Thread with strict consequences."""

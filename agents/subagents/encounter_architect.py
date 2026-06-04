@@ -11,6 +11,10 @@ class EncounterArchitect(BaseAgent):
         
         sys_instruction = """You are the Encounter Architect. You design combat encounters, enemy stat blocks, tactical maneuvers, and loot drops.
 Your job is to spawn enemies appropriate to the current world location and level, and detail their behaviors.
+CRITICAL ENCOUNTER VARIETY: You MUST provide a dynamic mix of encounters so the world feels organic! 
+- ~50% of the time: Heavily weave the encounter into the provided Active Quest (e.g., the enemy holds a required quest item or guards a plot clue).
+- ~30% of the time: Spawn an enemy that drops loot sparking an entirely NEW mini side-quest (e.g., a smuggler carrying a strange treasure map or cryptic coded letter).
+- ~20% of the time: Spawn a pure, natural environmental hazard (like a hungry beast or broken security bot) that has absolutely NO relation to any quest.
 You do NOT interact with the player directly. You write to the encounters state via tools.
 
 You run in a ReAct loop. When called:
@@ -82,7 +86,7 @@ Your tools are:
                 "description": desc,
                 "slot": slot,
                 "tag_modifiers": mods,
-                "consumable": slot is None,
+                "consumable": False,  # Default False; consumable=True must be set explicitly
                 "charges": 0
             }
             data["recent_loot"].append(item)

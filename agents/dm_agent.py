@@ -258,14 +258,27 @@ class DMAgent(BaseAgent):
                 
             elif op == "remove":
                 success = char.remove_item(item_name)
-                if not success:
-                    return f"Error: '{item_name}' not found in inventory."
-                    
-                with open(char_path, "w", encoding="utf-8") as f:
-                    json.dump(char.to_dict(), f, indent=4)
-                return f"Successfully removed '{item_name}' from inventory."
+                if success:
+                    with open(char_path, "w", encoding="utf-8") as f:
+                        json.dump(char.to_dict(), f, indent=4)
+                    return "Removed item."
+                return f"Error: '{item_name}' not found in inventory."
             else:
                 return "Error: Operation must be 'add' or 'remove'."
+
+        def modify_currency(args: str) -> str:
+            try:
+                amt = int(args.strip())
+            except ValueError:
+                return "Error: Amount must be an integer."
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            with open(char_path, "r", encoding="utf-8") as f:
+                char = Character.from_dict(json.load(f))
+            char.currency += amt
+            if char.currency < 0: char.currency = 0
+            with open(char_path, "w", encoding="utf-8") as f:
+                json.dump(char.to_dict(), f, indent=4)
+            return f"Added {amt} currency." if amt > 0 else f"Removed {abs(amt)} currency."
 
         def disassemble_item(item_name: str) -> str:
             """Usage: Action: disassemble_item: Rusty Blade"""
@@ -538,6 +551,49 @@ class DMAgent(BaseAgent):
             # Log compaction uses llm_client
             return write_dm_log(self.campaign_slug, text, self.llm_client)
 
+        def modify_world_aspect(args: str) -> str:
+            """Format: 'add | Name | Type | Description | [intensity]' or 'remove | Name'.
+            Types: Nemesis, Doom Clock, Heat, Trauma, Rule."""
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 2:
+                return "Error: Format must be 'add | Name | Type | Desc | [intensity]' or 'remove | Name'."
+            op = parts[0].lower()
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world = WorldState.from_dict(json.load(f))
+            if op == "add":
+                if len(parts) < 4:
+                    return "Error: add requires Name | Type | Description."
+                name, a_type, desc = parts[1], parts[2], parts[3]
+                intensity = int(parts[4]) if len(parts) > 4 else 1
+                world.add_aspect(name, a_type, desc, intensity)
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                return f"Added/updated World Aspect '{name}' (Type: {a_type}, Intensity: {intensity})."
+            elif op == "remove":
+                success = world.remove_aspect(parts[1])
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                return f"Removed World Aspect '{parts[1]}'." if success else f"Error: Aspect '{parts[1]}' not found."
+            return "Error: Operation must be 'add' or 'remove'."
+
+        def add_quest_note(args: str) -> str:
+            """Format: 'Quest Name | Note text'. Appends a contextual note to an active quest."""
+            if "|" not in args:
+                return "Error: Format must be 'Quest Name | Note text'."
+            quest_name, note = args.split("|", 1)
+            quest_name, note = quest_name.strip(), note.strip()
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world = WorldState.from_dict(json.load(f))
+            for q in world.active_quests:
+                if q.name.lower() == quest_name.lower():
+                    world.add_quest_note(q.id, note)
+                    with open(world_path, "w", encoding="utf-8") as f:
+                        json.dump(world.to_dict(), f, indent=4)
+                    return f"Added note to quest '{q.name}'."
+            return f"Error: Quest '{quest_name}' not found."
+
         return {
             "get_character_sheet": get_character_sheet,
             "get_world_details": get_world_details,
@@ -551,6 +607,7 @@ class DMAgent(BaseAgent):
             "trigger_encounter_architect": trigger_encounter_architect,
             "trigger_lore_keeper": trigger_lore_keeper,
             "modify_inventory": modify_inventory,
+            "modify_currency": modify_currency,
             "disassemble_item": disassemble_item,
             "use_consumable_item": use_consumable_item,
             "get_faction_details": get_faction_details,
@@ -560,6 +617,8 @@ class DMAgent(BaseAgent):
             "resolve_location_rumor": resolve_location_rumor,
             "advance_time": advance_time,
             "write_log_entry": write_log_entry,
+            "modify_world_aspect": modify_world_aspect,
+            "add_quest_note": add_quest_note,
             "query_world_bible": query_world_bible
         }
 
@@ -599,14 +658,15 @@ Follow these strict DM instructions:
 3. You have NARRATIVE AUTHORITY: if a dice roll fails by a small margin but success makes the story much more exciting or fun, you can fudge the narrative.
 4. Option Generation: You MUST end every narration by offering exactly 3-4 actionable choices for the player in a numbered list (1, 2, 3, etc.). You must strictly follow these Situational Overrides based on the CURRENT CONTEXT:
    - SURVIVAL OVERRIDE: If in immediate, life-threatening danger (e.g., drowning, falling), ALL choices must focus on desperately escaping/surviving.
-   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing.
+   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing. You MUST dedicate at least one option to actively utilizing the specific 'Current Location' environment (e.g., throwing a tavern chair, pushing an enemy into a hazard, or taking cover behind market stalls).
    - SOCIAL OVERRIDE: If locked in an intense conversation or negotiation, ALL choices must be dialogue options or social actions.
    - CAMPING OVERRIDE: If the player is resting or setting up camp, ALL choices must be camp activities (eating, tending wounds, crafting, sleeping, bonding). Note: Enforce bodily needs; if the player hasn't eaten or slept in a while, explicitly remind them of their hunger/exhaustion in the narrative and offer an option to consume rations.
-   - DEFAULT EXPLORATION (If none of the above apply): For EVERY Active Quest that logically aligns with the Current Location, dedicate one option to subtly progressing it. Rarely (10% of the time) include a "High Risk / High Reward" path. Remaining options are natural environmental interactions.
-   Do NOT label these paths explicitly. End with a note that they can describe their own action.
+   - DEFAULT EXPLORATION (If none of the above apply): You MUST heavily accelerate the story pacing to prevent boring, slow loops. For any Active Quest in the Current Location, dedicate 1-2 options to progressing it in DIFFERENT ways (e.g., a stealth approach vs a technical approach). You MUST make these options highly insightful by explicitly weaving in natural narrative hints about "what to do next". (IMPORTANT: NEVER use immersion-breaking meta-words like "breadcrumb", "clue", "quest", or "plot" in your actual story text). Crucially, if the player possesses specific items in their 'Inventory', or has 'Unlocked Lore'/'Secrets' that act as prerequisites, you MUST weave those specific advantages into the options (e.g., "Use the Black-Site Passcard you found earlier to bypass the heavy security door"). Rarely (10% of the time), include a High Risk / High Reward option. Remaining non-quest options MUST be highly thematic to the 'Current Location' Type but kept as low-stakes background flavor so they are not overwhelming (e.g., if in a 'City', offer to browse a market or listen to a street preacher; if in 'Ruins', offer to scavenge basic scrap or inspect strange flora). Do NOT offer high-stakes thematic events (like deadly traps or gang ambushes) every turn; keep them rare. Make it extremely clear through your vivid descriptions whether an option pushes the main story forward or is just casual flavor exploration.
+   Do NOT use meta-labels for any options. End with a note that they can describe their own action.
 5. Do NOT invent observations. Always call the tools if you need to know stats, roll checks, or get subagent states.
 6. ALWAYS write a log entry summarizing the outcome via the 'write_log_entry' tool. You MUST wait for the 'Observation:' before outputting your 'Answer:'. NEVER output 'Action:' and 'Answer:' in the same response!
-7. When combat is occurring, you must use 'apply_combat_turn' to execute rounds.
+7. Combat Escalation & Execution: If a situation turns hostile (e.g., the player fails a stealth check, threatens an armed NPC, or is ambushed), you MUST NOT stall or politely wait for the player to get ready. You MUST instantly use 'trigger_encounter_architect' to formally start the combat engine, and narrate the enemy aggressively throwing the first punch. While an Active Encounter exists, you MUST use 'apply_combat_turn' on every single turn to execute the rounds mechanically.
+   - LOOT: If `apply_combat_turn` returns `enemy_dead: true` and `loot_dropped`, you MUST explicitly narrate the player finding and looting those items in your Answer!
 8. Crafting is Freeform but Risky: If the player attempts to MacGyver or invent a custom item, verify they have logical materials in their inventory. You MUST call 'roll_ability_check' (e.g., logic, crafting, tinkering) to determine if they succeed.
    - If successful: Remove the materials and add the custom item with appropriate mechanical stats using 'modify_inventory'.
    - If failed: Narrate a creative consequence (e.g., destroying the materials, taking physical damage from a backfire, or alerting enemies). 
@@ -619,6 +679,8 @@ Follow these strict DM instructions:
 14. World Aspects: Actively enforce any "Active World Aspects" present in your context block. If there is a Nemesis, introduce them into scenes; if there is High Heat, have guards patrol; if there is a Trauma/Scar, impose narrative penalties on the player's checks.
 15. Lore Accuracy: Use the 'query_world_bible' tool whenever the player asks about history/mythos, OR whenever you need to introduce a new region, enforce a cultural taboo, or determine the rules of magic/technology. Do not invent contradictory lore; always check the bible first if you lack context.
 16. Spatial Awareness: The player can ONLY interact with entities, items, and structures present in their 'Current Location'. If they attempt to interact with someone or something located elsewhere, refuse the action and remind them they are not there.
+17. Quest Confirmation: If the player's action successfully advances or completes an Active Quest, you MUST weave a very obvious diegetic confirmation directly into your narration (e.g., "You grab the datapad, knowing this is exactly the piece of the puzzle you needed to find the smuggler.") so the player confidently knows their action progressed the quest without needing meta system tags.
+18. Dramatic Pacing: Never trap the player in granular, boring point-and-click loops (e.g., 'You open the drawer, what next?'). If a player succeeds at a quest-related action, you MUST narrate a significant leap forward in the story, instantly pushing them into the next major, interesting scene or revelation.
 
 Available Tools:
 - get_character_sheet: Returns JSON character sheet. Usage: Action: get_character_sheet
@@ -631,9 +693,10 @@ Available Tools:
 - apply_combat_turn: Resolves a combat round. Format: 'tag_name'. Usage: Action: apply_combat_turn: lasers
 - trigger_world_keeper: Queries WorldKeeper subagent. Usage: Action: trigger_world_keeper: storm coming
 - trigger_faction_weaver: Queries FactionWeaver subagent. Usage: Action: trigger_faction_weaver: player attacked gang
-- trigger_encounter_architect: Queries EncounterArchitect. Usage: Action: trigger_encounter_architect: spawn bandit
+- trigger_encounter_architect: Queries EncounterArchitect. You MUST include the Current Location and the relevant Active Quest in your query so the encounter is heavily tied to the plot rather than just random filler. Usage: Action: trigger_encounter_architect: spawn an enemy in the Ruins holding the datapad for the smuggler quest
 - trigger_lore_keeper: Queries LoreKeeper. Usage: Action: trigger_lore_keeper: player found tablet
 - modify_inventory: Adds or removes items. Format: 'add | Name | [desc] | [slot] | [consumable] | [charges]' or 'remove | Name'. Usage: Action: modify_inventory: add | Healing Salve | Heals 10 HP | None | True | 2
+- modify_currency: Adds or removes world currency. Format: 'amount'. Usage: Action: modify_currency: 50
 - disassemble_item: Breaks down an item in inventory into raw salvage components (Junk Metal, Scrap Leather, Scrap Electronics, wire, cloth). Usage: Action: disassemble_item: rusty metal plate
 - use_consumable_item: Uses a consumable item (e.g. healing items or temporary stat boosts). Usage: Action: use_consumable_item: healing salve
 - get_faction_details: Returns active factions and NPC databases. Usage: Action: get_faction_details
@@ -643,6 +706,8 @@ Available Tools:
 - resolve_location_rumor: Removes a rumor from a location once handled. If escalated is true, the rumor is sent to the Lore Keeper to become a main story quest. Format: 'Location Name | Rumor | true/false'. Usage: Action: resolve_location_rumor: The Spire | Barkeep is suspicious | true
 - advance_time: Pushes the world clock forward by X turns, triggering background faction/lore heartbeats. Format: 'turns'. Usage: Action: advance_time: 3
 - write_log_entry: Saves a narrative bullet summary. Usage: Action: write_log_entry: Escaped the corporate droid in the noodle shop.
+- modify_world_aspect: Adds, updates or removes a World Aspect (Nemesis, Doom Clock, Heat, Trauma, Rule). Format: 'add | Name | Type | Description | [intensity]' or 'remove | Name'. Usage: Action: modify_world_aspect: remove | The Iron Warden
+- add_quest_note: Appends a contextual discovery note to an active quest (e.g. a found passcard, a heard rumor). Format: 'Quest Name | Note'. Usage: Action: add_quest_note: The Lost Shipment | Found a partial manifest in the smuggler's coat.
 """
 
     def process_turn(self, player_action: str) -> str:
@@ -692,7 +757,7 @@ Available Tools:
         cond = "Healthy" if hp_pct >= 80 else "Wounded" if hp_pct >= 40 else "Near Death"
         
         eq_list = [f"{slot}: {item.name}" for slot, item in char.equipped.items()]
-        inv_list = [item.name for item in char.inventory]
+        inv_list = [f"{item.name} ({item.description})" for item in char.inventory]
         tags_list = [f"{k} (+{v.modifier})" for k, v in char.abilities.tags.items()]
         
         # Load factions to populate context snapshot
@@ -750,7 +815,7 @@ Available Tools:
         # Load current location and adjacent paths
         current_loc = next((l for l in world.discovered_locations if l.id == getattr(world, 'current_location_id', None)), None)
         if current_loc:
-            current_loc_str = f"{current_loc.name} ({current_loc.description})"
+            current_loc_str = f"{current_loc.name} [Type: {current_loc.type}] ({current_loc.description})"
             connected_locs = [l for l in world.discovered_locations if l.id in current_loc.connections]
             connected_str = ", ".join([l.name for l in connected_locs]) if connected_locs else "None"
             local_rumors_list = current_loc.rumors
@@ -784,6 +849,7 @@ Available Tools:
 
         context_str = (
             f"Character Status: {cond} | "
+            f"Currency: {char.currency} | "
             f"Equipped: {', '.join(eq_list) if eq_list else 'None'} | "
             f"Inventory: {', '.join(inv_list) if inv_list else 'Empty'} | "
             f"Skills: {', '.join(tags_list)} | "
@@ -807,5 +873,5 @@ Available Tools:
         if heartbeat_occurred:
             query += f" Note: A world heartbeat just triggered: {heartbeat_log}."
             
-        dm_response = self.run(query, max_turns=6, verbose=self.verbose, agent_name="DM")
+        dm_response = self.run(query, max_turns=12, verbose=self.verbose, agent_name="DM")
         return dm_response

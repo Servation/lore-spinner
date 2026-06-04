@@ -11,6 +11,7 @@ class Character:
     abilities: AbilitySet = field(default_factory=AbilitySet)
     hp: int = 20
     max_hp: int = 20
+    currency: int = 0
     inventory: List[Item] = field(default_factory=list)
     equipped: Dict[str, Item] = field(default_factory=dict)  # slots: "weapon", "armor", "accessory"
     status_effects: List[dict] = field(default_factory=list)  # e.g., [{"name": "poison", "modifiers": {"stamina": -2}, "duration": 3}]
@@ -136,6 +137,7 @@ class Character:
             "abilities": self.abilities.to_dict(),
             "hp": self.hp,
             "max_hp": self.max_hp,
+            "currency": self.currency,
             "inventory": [item.to_dict() for item in self.inventory],
             "equipped": {slot: item.to_dict() for slot, item in self.equipped.items()},
             "status_effects": self.status_effects,
@@ -155,6 +157,7 @@ class Character:
             abilities=AbilitySet.from_dict(data.get("abilities", {})),
             hp=data.get("hp", 20),
             max_hp=data.get("max_hp", 20),
+            currency=data.get("currency", 0),
             inventory=[Item.from_dict(item_data) for item_data in data.get("inventory", [])],
             equipped={slot: Item.from_dict(item_data) for slot, item_data in data.get("equipped", {}).items()},
             status_effects=data.get("status_effects", []),

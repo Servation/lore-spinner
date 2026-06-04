@@ -134,6 +134,13 @@ Your tools are:
             data = json.load(f)
         world = WorldState.from_dict(data)
         
-        query = f"World Genre: {world.setting_genre}. Current time: {world.time_of_day}. Location: {world.current_location}. Active environmental modifiers: {[m.name for m in world.environmental_modifiers]}. Update the environment if appropriate."
+        # Resolve actual current location name from ID rather than stale string field
+        current_loc_name = world.current_location
+        if hasattr(world, 'current_location_id') and world.current_location_id:
+            loc_obj = next((l for l in world.discovered_locations if l.id == world.current_location_id), None)
+            if loc_obj:
+                current_loc_name = f"{loc_obj.name} ({loc_obj.type})"
+        
+        query = f"World Genre: {world.setting_genre}. Current time: {world.time_of_day}. Location: {current_loc_name}. Active environmental modifiers: {[m.name for m in world.environmental_modifiers]}. Update the environment if appropriate."
         
         return self.run(query, max_turns=3, verbose=False, agent_name="WorldKeeper")

@@ -245,6 +245,7 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
             char = Character.from_dict(json.load(f))
         print_styled(f"\n--- OOC: Character Stats for {char.name} ---", COLOR_OOC)
         print(f"HP: {char.hp}/{char.max_hp}")
+        print(f"Currency: {char.currency}")
         print("Ability Tags (Hidden Modifiers):")
         for t_name, tag in char.abilities.tags.items():
             print(f" - {t_name}: +{tag.modifier} (Usage: {tag.usage_count} ticks)")
@@ -258,6 +259,7 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
         with open(char_path, "r", encoding="utf-8") as f:
             char = Character.from_dict(json.load(f))
         print_styled(f"\n--- OOC: Inventory ---", COLOR_OOC)
+        print(f"Currency: {char.currency}")
         if not char.inventory:
             print("Your pockets are empty.")
         for item in char.inventory:
@@ -295,8 +297,30 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
         else:
             print_styled("No lore discovered yet.", COLOR_OOC)
             
+    elif "world" in sub or "environment" in sub:
+        if not os.path.exists(world_path):
+            print_styled("World state not found.", COLOR_ERROR)
+            return
+        with open(world_path, "r", encoding="utf-8") as f:
+            world = WorldState.from_dict(json.load(f))
+        print_styled(f"\n--- OOC: World State ---", COLOR_OOC)
+        print(f"Turn: {world.turn_count} | Time of Day: {world.time_of_day.upper()}")
+        print(f"Genre: {world.setting_genre}")
+        if world.environmental_modifiers:
+            mods = [f"{m.name} ({m.modifier:+})" for m in world.environmental_modifiers if m.modifier != 0]
+            weather = [m.name for m in world.environmental_modifiers if m.modifier == 0]
+            parts = []
+            if mods: parts.append(", ".join(mods))
+            if weather: parts.append(f"Weather: {', '.join(weather)}")
+            print(f"Active Modifiers: {'; '.join(parts) if parts else 'None'}")
+        else:
+            print("Active Modifiers: None")
+        if world.active_quests:
+            print(f"Active Quests: {', '.join(q.name for q in world.active_quests if q.status == 'active')}")
+        print_styled("-" * 30, COLOR_OOC)
+
     else:
-        print_styled("OOC Command Options: 'ooc: stats', 'ooc: inventory', 'ooc: quests', 'ooc: log', 'ooc: lore'", COLOR_OOC)
+        print_styled("OOC Command Options: 'ooc: stats', 'ooc: inventory', 'ooc: quests', 'ooc: log', 'ooc: lore', 'ooc: world'", COLOR_OOC)
 
 def extract_choices(text: str) -> List[str]:
     import re
@@ -411,8 +435,12 @@ Do not include any intro, outro, or metadata. Write only the narrative paragraph
     print_styled("[ Atmosphere & Environment ]", COLOR_OOC)
     print(f"Genre: {world.setting_genre} | Time: {world.time_of_day.upper()} (Turn: {world.turn_count})")
     if world.environmental_modifiers:
-        mods = [f"{k} ({v:+})" for k, v in world.environmental_modifiers.items()]
-        print(f"Active Modifiers: {', '.join(mods)}")
+        mods = [f"{m.name} ({m.modifier:+})" for m in world.environmental_modifiers if m.modifier != 0]
+        weather = [m.name for m in world.environmental_modifiers if m.modifier == 0]
+        parts = []
+        if mods: parts.append(", ".join(mods))
+        if weather: parts.append(f"Weather: {', '.join(weather)}")
+        print(f"Active Modifiers: {'; '.join(parts) if parts else 'None'}")
     else:
         print("Active Modifiers: None (Normal conditions)")
         
@@ -823,11 +851,18 @@ def game_loop(llm_client, campaign_slug: str):
             with open(world_path, "w", encoding="utf-8") as f:
                 json.dump(world.to_dict(), f, indent=4)
             
-            # Check character health
+            # Check character health + tick status effects
             char_path = os.path.join("saves", campaign_slug, "character.json")
             with open(char_path, "r", encoding="utf-8") as f:
                 char_data = json.load(f)
             char = Character.from_dict(char_data)
+            
+            # Tick status effects each turn so they expire properly
+            expired = char.tick_status_effects()
+            if expired:
+                print_styled(f"[Status effects expired: {', '.join(expired)}]", theme.color_ooc)
+            with open(char_path, "w", encoding="utf-8") as f:
+                json.dump(char.to_dict(), f, indent=4)
             
             if not char.is_alive():
                 print_styled("\n!!! YOU HAVE FALLEN !!!", COLOR_ERROR)
