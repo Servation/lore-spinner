@@ -120,9 +120,14 @@ class WorldState:
     world_aspects: List[WorldAspect] = field(default_factory=list)
     world_bible_summary: str = ""
     current_location_id: str = ""
-    weather: str = ""  # Descriptive weather string, e.g. "Heavy Rain"
-    hunger: int = 0   # 0=Full, 1=Hungry, 2=Starving
-    fatigue: int = 0  # 0=Rested, 1=Tired, 2=Exhausted
+    weather: str = ""        # Descriptive weather string, e.g. "Heavy Rain"
+    hunger: int = 0           # 0=Full, 1=Hungry, 2=Starving
+    fatigue: int = 0          # 0=Rested, 1=Tired, 2=Exhausted
+    # --- Situational Override States ---
+    # These are set/cleared mechanically by DM tools so overrides cannot be forgotten
+    survival_situation: str = ""   # Non-empty = Survival Override active; describes the threat
+    social_encounter: str = ""     # Non-empty = Social Override active; describes who and the stakes
+    is_camping: bool = False        # True = Camping Override active
 
     TIMES_OF_DAY = ["Morning", "Noon", "Afternoon", "Dusk", "Night", "Midnight"]
 
@@ -214,7 +219,10 @@ class WorldState:
             "current_location_id": self.current_location_id,
             "weather": self.weather,
             "hunger": self.hunger,
-            "fatigue": self.fatigue
+            "fatigue": self.fatigue,
+            "survival_situation": self.survival_situation,
+            "social_encounter": self.social_encounter,
+            "is_camping": self.is_camping
         }
 
     @classmethod
@@ -253,5 +261,8 @@ class WorldState:
             current_location_id=data.get("current_location_id", ""),
             weather=data.get("weather", ""),
             hunger=data.get("hunger", 0),
-            fatigue=data.get("fatigue", 0)
+            fatigue=data.get("fatigue", 0),
+            survival_situation=data.get("survival_situation", ""),
+            social_encounter=data.get("social_encounter", ""),
+            is_camping=data.get("is_camping", False)
         )
