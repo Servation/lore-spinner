@@ -18,6 +18,7 @@ class Character:
     position: str = "Start"
     relationships: Dict[str, str] = field(default_factory=dict)
     miracles: int = 1  # Number of times the character can miraculously survive a fatal injury
+    speed: int = 2     # Used for calculating combat initiative
 
     def is_alive(self) -> bool:
         return self.hp > 0
@@ -144,7 +145,8 @@ class Character:
             "status_effects": self.status_effects,
             "position": self.position,
             "relationships": self.relationships,
-            "miracles": self.miracles
+            "miracles": self.miracles,
+            "speed": self.speed
         }
 
     @classmethod
@@ -165,6 +167,7 @@ class Character:
             status_effects=data.get("status_effects", []),
             position=data.get("position", "Start"),
             relationships=data.get("relationships", {}),
-            miracles=data.get("miracles", 1)
+            miracles=data.get("miracles", 1),
+            speed=data.get("speed", 2)
         )
         return char

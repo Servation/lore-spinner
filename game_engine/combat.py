@@ -13,6 +13,7 @@ class Enemy:
     abilities: AbilitySet = field(default_factory=AbilitySet)
     weapon_damage: str = "1d6"
     defense: int = 10  # Base DC to hit them
+    speed: int = 2     # Used for calculating combat initiative
 
     def is_alive(self) -> bool:
         return self.hp > 0
@@ -30,7 +31,8 @@ class Enemy:
             "threat_level": self.threat_level,
             "abilities": self.abilities.to_dict(),
             "weapon_damage": self.weapon_damage,
-            "defense": self.defense
+            "defense": self.defense,
+            "speed": self.speed
         }
 
     @classmethod
@@ -44,15 +46,18 @@ class Enemy:
             threat_level=data.get("threat_level", 1),
             abilities=AbilitySet.from_dict(data.get("abilities", {})),
             weapon_damage=data.get("weapon_damage", "1d6"),
-            defense=data.get("defense", 10)
+            defense=data.get("defense", 10),
+            speed=data.get("speed", 2)
         )
 
 
 def generate_enemy(name: str, threat_level: int, genre: str) -> Enemy:
     """Generates an enemy scaled to a threat level and setting genre."""
     # Scale HP and Defense based on threat level
-    hp = 5 + threat_level * 5 + roll(4)
-    defense = 9 + threat_level * 2
+    # Lower base HP slightly for "swarm" approach since there are multiple
+    hp = max(1, 3 + threat_level * 3 + roll(4))
+    defense = 10 + threat_level
+    speed = 2 + threat_level
     
     # Setup some tags based on threat level
     enemy_abilities = AbilitySet()
@@ -93,125 +98,175 @@ def generate_enemy(name: str, threat_level: int, genre: str) -> Enemy:
         threat_level=threat_level,
         abilities=enemy_abilities,
         weapon_damage=weapon_damage,
-        defense=defense
+        defense=defense,
+        speed=speed
     )
 
 
-def resolve_combat_turn(
+def resolve_combat_round(
     character: Character, 
     action_tag_name: str, 
-    enemy: Enemy, 
+    target_index: int,
+    enemies: List[Enemy], 
+    initiative_order: List[Dict[str, Any]],
     environmental_modifiers: Optional[List[AbilityTag]] = None
 ) -> Dict[str, Any]:
-    """Resolves a single exchange in combat.
+    """Resolves a full round of combat for all participants based on initiative order.
     
-    1. Player rolls vs Enemy Defense.
-    2. If hit: roll damage, subtract enemy HP.
-    3. If enemy is still alive: enemy counterattacks.
-    4. Enemy rolls counterattack vs Player Defense (derived from Player's agility/evasion/combat tag or base 10).
-    5. If enemy hits: roll enemy damage, subtract player HP.
-    6. Tick tag progression if player successfully used their tag.
+    1. Iterates through initiative_order.
+    2. If it's the player's turn: Player attacks target_index.
+    3. If it's an enemy's turn: Enemy attacks player using Evasion mechanic.
     
-    Returns a details dictionary.
+    Returns a comprehensive details dictionary for the DM to narrate.
     """
     results = {
-        "player_hit": False,
-        "player_roll_detail": {},
-        "player_damage": 0,
-        "player_damage_detail": "",
-        "enemy_hit": False,
-        "enemy_roll": 0,
-        "enemy_damage": 0,
-        "enemy_damage_detail": "",
-        "enemy_dead": False,
-        "player_dead": False,
+        "round_events": [],
         "progression_triggered": False,
-        "new_modifier": 0
+        "new_modifier": 0,
+        "player_dead": False,
+        "all_enemies_dead": False
     }
     
-    # --- 1. Player attack ---
-    player_mod = character.get_effective_modifier(action_tag_name, environmental_modifiers)
-    check_res = roll_check(player_mod, enemy.defense)
-    results["player_roll_detail"] = check_res
-    
-    if check_res["success"]:
-        results["player_hit"] = True
+    for turn_info in initiative_order:
+        entity_id = turn_info["id"]
         
-        # Calculate damage based on equipped weapon or default 1d6
-        weapon = character.equipped.get("weapon")
-        dmg_expr = "1d6"
-        if weapon and "damage" in weapon.tag_modifiers:
-            # item has damage spec
-            dmg_expr = f"1d6+{weapon.tag_modifiers['damage']}"
-        elif action_tag_name.lower() in ["spellcasting", "lasers"]:
-            dmg_expr = "1d8"
+        # Stop processing if player is dead
+        if not character.is_alive():
+            results["player_dead"] = True
+            break
             
-        # Add player damage modifier (capped)
-        dmg, dmg_detail = roll_damage(dmg_expr)
-        # Apply bonus from action tag (half of modifier, minimum 0)
-        bonus = max(0, player_mod // 2)
-        if bonus > 0:
-            dmg += bonus
-            dmg_detail += f" + {bonus} (tag bonus)"
+        # Stop processing if all enemies are dead
+        living_enemies = [e for e in enemies if e.is_alive()]
+        if not living_enemies:
+            results["all_enemies_dead"] = True
+            break
             
-        dmg_taken = enemy.take_damage(dmg)
-        results["player_damage"] = dmg_taken
-        results["player_damage_detail"] = dmg_detail
-        
-        # Tick tag usage on success
-        prog, new_mod = character.abilities.tick_usage(action_tag_name)
-        results["progression_triggered"] = prog
-        results["new_modifier"] = new_mod
-        
-        if not enemy.is_alive():
-            results["enemy_dead"] = True
-            return results
+        if entity_id == "player":
+            # --- Player's Turn ---
+            if target_index < 0 or target_index >= len(enemies):
+                results["round_events"].append({"actor": "player", "action": "invalid_target"})
+                continue
+                
+            target = enemies[target_index]
+            if not target.is_alive():
+                results["round_events"].append({"actor": "player", "action": "target_already_dead", "target_name": target.name})
+                continue
+                
+            player_mod = character.get_effective_modifier(action_tag_name, environmental_modifiers)
+            check_res = roll_check(player_mod, target.defense)
             
-    # --- 2. Enemy counterattack ---
-    if enemy.is_alive():
-        # Player Defense: base 10 + player's evasion or combat tag modifier
-        if "evasion" in character.abilities.tags:
-            evasion_tag = "evasion"
-        elif "athletics" in character.abilities.tags:
-            evasion_tag = "athletics"
-        elif "combat" in character.abilities.tags:
-            evasion_tag = "combat"
-        else:
-            evasion_tag = "evasion"
+            event = {
+                "actor": "player",
+                "target": target.name,
+                "hit": check_res["success"],
+                "roll_detail": check_res,
+                "damage": 0,
+                "damage_detail": ""
+            }
             
-        player_def = 10 + character.get_effective_modifier(evasion_tag, environmental_modifiers)
-        
-        # Armor reduces damage or increases defense
-        armor = character.equipped.get("armor")
-        if armor:
-            # armor adds defense or damage reduction
-            player_def += armor.tag_modifiers.get("defense", 1)
+            if check_res["success"]:
+                # Calculate damage based on equipped weapon or default 1d6
+                weapon = character.equipped.get("weapon")
+                dmg_expr = "1d6"
+                if weapon and "damage" in weapon.tag_modifiers:
+                    dmg_expr = f"1d6+{weapon.tag_modifiers['damage']}"
+                elif action_tag_name.lower() in ["spellcasting", "lasers"]:
+                    dmg_expr = "1d8"
+                    
+                dmg, dmg_detail = roll_damage(dmg_expr)
+                bonus = max(0, player_mod // 2)
+                if bonus > 0:
+                    dmg += bonus
+                    dmg_detail += f" + {bonus} (tag bonus)"
+                    
+                dmg_taken = target.take_damage(dmg)
+                event["damage"] = dmg_taken
+                event["damage_detail"] = dmg_detail
+                event["target_dead"] = not target.is_alive()
+                
+                # Tick tag usage on success
+                prog, new_mod, leveled_tag = character.abilities.tick_usage(action_tag_name)
+                if prog:
+                    results["progression_triggered"] = True
+                    results["new_modifier"] = new_mod
+                    
+                    physical_tags = ["athletics", "combat", "fortitude", "stamina", "melee_weapons", "brawling", "evasion"]
+                    if leveled_tag in physical_tags:
+                        character.max_hp += 5
+                        character.hp += 5
+                        results["round_events"].append({
+                            "actor": "system",
+                            "action": "hp_growth",
+                            "message": f"Physical ability '{leveled_tag}' leveled up! Max HP increased by 5."
+                        })
+                    
+            results["round_events"].append(event)
             
-        # Enemy roll d20 + threat_level
-        enemy_atk_mod = enemy.threat_level + enemy.abilities.get_modifier("combat")
-        enemy_roll = roll(20)
-        enemy_total = enemy_roll + enemy_atk_mod
-        results["enemy_roll"] = enemy_total
-        
-        if enemy_total >= player_def:
-            results["enemy_hit"] = True
+        elif entity_id.startswith("enemy_"):
+            # --- Enemy's Turn ---
+            enemy_idx = int(entity_id.split("_")[1])
+            if enemy_idx < 0 or enemy_idx >= len(enemies):
+                continue
+                
+            enemy = enemies[enemy_idx]
+            if not enemy.is_alive():
+                continue # Dead enemies don't get a turn
+                
+            # Enemy attacks player. Player rolls Evasion.
+            if "evasion" in character.abilities.tags:
+                evasion_tag = "evasion"
+            elif "athletics" in character.abilities.tags:
+                evasion_tag = "athletics"
+            elif "combat" in character.abilities.tags:
+                evasion_tag = "combat"
+            else:
+                evasion_tag = "evasion"
+                
+            player_evasion_mod = character.get_effective_modifier(evasion_tag, environmental_modifiers)
+            player_def_roll = roll(20) + player_evasion_mod + 10 # Base 10 + d20 + evasion
             
-            # Enemy damage
-            dmg, dmg_detail = roll_damage(enemy.weapon_damage)
-            
-            # Apply armor damage reduction
-            dr = 0
+            # Armor reduces damage or increases defense
+            armor = character.equipped.get("armor")
             if armor:
-                dr = armor.tag_modifiers.get("damage_reduction", 0)
-            final_dmg = max(1, dmg - dr)
-            if dr > 0:
-                dmg_detail += f" - {dr} (armor)"
+                player_def_roll += armor.tag_modifiers.get("defense", 1)
                 
-            dmg_taken = character.take_damage(final_dmg)
-            results["enemy_damage"] = dmg_taken
-            results["enemy_damage_detail"] = f"{dmg_detail} = {dmg_taken}"
+            enemy_atk_mod = enemy.threat_level + (enemy.threat_level // 2)
+            enemy_atk_roll = roll(20) + enemy_atk_mod
             
-            if not character.is_alive():
-                results["player_dead"] = True
+            hit = enemy_atk_roll >= player_def_roll
+            
+            event = {
+                "actor": enemy.name,
+                "target": "player",
+                "hit": hit,
+                "atk_roll": enemy_atk_roll,
+                "def_roll": player_def_roll,
+                "damage": 0,
+                "damage_detail": ""
+            }
+            
+            if hit:
+                # Enemy damage
+                dmg, dmg_detail = roll_damage(enemy.weapon_damage)
                 
+                # Apply armor damage reduction
+                dr = 0
+                if armor:
+                    dr = armor.tag_modifiers.get("damage_reduction", 0)
+                final_dmg = max(1, dmg - dr)
+                if dr > 0:
+                    dmg_detail += f" - {dr} (armor)"
+                    
+                dmg_taken = character.take_damage(final_dmg)
+                event["damage"] = dmg_taken
+                event["damage_detail"] = f"{dmg_detail} = {dmg_taken}"
+                
+            results["round_events"].append(event)
+            
+    if not character.is_alive():
+        results["player_dead"] = True
+    living_enemies = [e for e in enemies if e.is_alive()]
+    if not living_enemies:
+        results["all_enemies_dead"] = True
+        
     return results

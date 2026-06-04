@@ -43,7 +43,7 @@ class AbilitySet:
         if clean_name in self.tags:
             del self.tags[clean_name]
 
-    def tick_usage(self, tag_name: str) -> Tuple[bool, int]:
+    def tick_usage(self, tag_name: str) -> Tuple[bool, int, str]:
         """Increments usage counter for a tag and checks for level-up.
         
         Progression threshold: usage needed = (current_modifier + 1) * 3
@@ -51,13 +51,13 @@ class AbilitySet:
         """
         clean_name = tag_name.strip().lower()
         if clean_name not in self.tags:
-            return False, 0
+            return False, 0, clean_name
             
         tag = self.tags[clean_name]
         
         # Don't level up item-based or environment-based tags
         if tag.source != "innate":
-            return False, tag.modifier
+            return False, tag.modifier, clean_name
             
         tag.usage_count += 1
         
@@ -72,9 +72,9 @@ class AbilitySet:
         if tag.usage_count >= threshold:
             tag.modifier += 1
             tag.usage_count = 0
-            return True, tag.modifier
+            return True, tag.modifier, clean_name
             
-        return False, tag.modifier
+        return False, tag.modifier, clean_name
 
     def get_combined_modifier(self, tag_names: List[str]) -> int:
         """Computes the sum of modifiers for the specified list of tags."""

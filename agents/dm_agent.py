@@ -53,6 +53,27 @@ class DMAgent(BaseAgent):
             with open(path, "r", encoding="utf-8") as f:
                 return f.read()
 
+        def query_unlocked_lore(query: str) -> str:
+            """Usage: Action: query_unlocked_lore: [title or keyword]"""
+            path = os.path.join("saves", self.campaign_slug, "lore.json")
+            if not os.path.exists(path):
+                return "Error: lore.json not found."
+            with open(path, "r", encoding="utf-8") as f:
+                lore_data = json.load(f)
+            
+            results = []
+            q_lower = query.lower()
+            for entry in lore_data.get("unlocked_lore", []):
+                if q_lower in entry.get("title", "").lower() or q_lower in entry.get("text", "").lower():
+                    results.append(f"LORE - {entry.get('title')}: {entry.get('text')}")
+            for secret in lore_data.get("secrets", []):
+                if q_lower in secret.lower():
+                    results.append(f"SECRET: {secret}")
+            
+            if results:
+                return "\n".join(results)
+            return f"No lore or secrets found matching '{query}'."
+
         def get_active_encounter(dummy: str) -> str:
             path = os.path.join("saves", self.campaign_slug, "encounters.json")
             if not os.path.exists(path):
@@ -97,7 +118,13 @@ class DMAgent(BaseAgent):
             prog_triggered = False
             new_mod = mod
             if res["success"]:
-                prog_triggered, new_mod = char.abilities.tick_usage(tag_name)
+                prog_triggered, new_mod, leveled_tag = char.abilities.tick_usage(tag_name)
+                if prog_triggered:
+                    physical_tags = ["athletics", "combat", "fortitude", "stamina", "melee_weapons", "brawling", "evasion"]
+                    if leveled_tag in physical_tags:
+                        char.max_hp += 5
+                        char.hp += 5
+                        res["hp_growth"] = f"Physical ability '{leveled_tag}' leveled up! Max HP increased by 5."
                 
             # Save character back
             with open(char_path, "w", encoding="utf-8") as f:
@@ -140,8 +167,16 @@ class DMAgent(BaseAgent):
                 
             return f"Healed character by {healed} HP. Current HP: {char.hp}/{char.max_hp}."
 
-        def apply_combat_turn(action_tag_name: str) -> str:
-            """Format: 'action_tag_name' (e.g. 'melee_weapons')"""
+        def apply_combat_turn(args: str) -> str:
+            """Format: 'target_index | action_tag_name' (e.g. '0 | melee_weapons')"""
+            parts = args.split("|")
+            if len(parts) < 2:
+                return "Error: Format must be 'target_index | action_tag_name'"
+            try:
+                target_index = int(parts[0].strip())
+            except ValueError:
+                return "Error: target_index must be an integer."
+            action_tag_name = parts[1].strip()
             char_path = os.path.join("saves", self.campaign_slug, "character.json")
             with open(char_path, "r", encoding="utf-8") as f:
                 char = Character.from_dict(json.load(f))
@@ -155,17 +190,19 @@ class DMAgent(BaseAgent):
                 enc_data = json.load(f)
                 
             ae = enc_data.get("active_encounter")
-            if not ae or not ae.get("enemy"):
+            if not ae or not ae.get("enemies"):
                 return "Error: No active enemy to fight."
                 
-            enemy = Enemy.from_dict(ae["enemy"])
+            from game_engine.combat import Enemy, resolve_combat_round
+            enemies = [Enemy.from_dict(e_data) for e_data in ae["enemies"]]
+            initiative_order = ae.get("initiative_order", [])
             
             # Resolve exchange
-            res = resolve_combat_turn(char, action_tag_name, enemy, world.environmental_modifiers)
+            res = resolve_combat_round(char, action_tag_name, target_index, enemies, initiative_order, world.environmental_modifiers)
             
             # Update objects and save
-            ae["enemy"] = enemy.to_dict()
-            if res["enemy_dead"]:
+            ae["enemies"] = [e.to_dict() for e in enemies]
+            if res.get("all_enemies_dead"):
                 enc_data["active_encounter"] = None
                 # Add loot if any exists in recent_loot to player inventory
                 loot_received = []
@@ -684,7 +721,8 @@ class DMAgent(BaseAgent):
             "modify_world_aspect": modify_world_aspect,
             "add_quest_note": add_quest_note,
             "set_override_state": set_override_state,
-            "query_world_bible": query_world_bible
+            "query_world_bible": query_world_bible,
+            "query_unlocked_lore": query_unlocked_lore
         }
 
     def _build_dynamic_prompt(self) -> str:
@@ -723,7 +761,7 @@ Follow these strict DM instructions:
 3. You have NARRATIVE AUTHORITY: if a dice roll fails by a small margin but success makes the story much more exciting or fun, you can fudge the narrative.
 4. Option Generation: You MUST end every narration by offering exactly 3-4 actionable choices for the player in a numbered list (1, 2, 3, etc.). You must strictly follow these Situational Overrides based on the CURRENT CONTEXT:
    - SURVIVAL OVERRIDE: If in immediate, life-threatening danger (e.g., drowning, falling, trapped in a fire), you MUST call 'set_override_state: survival | [description of threat]' to lock this mode, and ALL choices must focus on desperately escaping/surviving. When the threat is resolved, call 'set_override_state: clear | survival'.
-   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing. You MUST dedicate at least one option to actively utilizing the specific 'Current Location' environment (e.g., throwing a tavern chair, pushing an enemy into a hazard, or taking cover behind market stalls). Combat is locked mechanically via encounters.json — you do not need to manually set it.
+   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing. You MUST dedicate at least one option to actively utilizing the specific 'Current Location' environment (e.g., throwing a tavern chair, pushing an enemy into a hazard, or taking cover behind market stalls). If the player has any physical/combat Ability Tag at +3 or higher, you MUST dedicate one option to a 'Special Maneuver' (e.g., Cleave, Double Attack, Precision Shot) reflecting their high-tier skill. You MUST diegetically describe the danger of the enemy based on their Threat Level (e.g. Threat 1-2 is weak, Threat 3-4 is dangerous, Threat 5+ is terrifyingly powerful). Combat is locked mechanically via encounters.json — you do not need to manually set it.
    - STEALTH OVERRIDE: If the player enters a hostile area but combat hasn't started (e.g., sneaking through a compound), you MUST call 'set_override_state: stealth | [target location or enemy]' to lock this mode. ALL choices must be restricted to quiet movement, observing patrols, finding cover, or silent takedowns. When the player gets caught (combat starts) or escapes, call 'set_override_state: clear | stealth'.
    - SOCIAL OVERRIDE: If the player enters an intense, locked conversation or negotiation (interrogation, tense standoff, seduction, diplomacy), you MUST call 'set_override_state: social | [who + the stakes]' to lock this mode, and ALL choices must be dialogue options or social actions. When the conversation resolves, call 'set_override_state: clear | social'.
    - INVESTIGATION OVERRIDE: If the player is solving a specific puzzle, hacking a terminal, or examining a crime scene, you MUST call 'set_override_state: investigation | [puzzle description]' to lock this mode. ALL choices must be focused intellectual actions (scanning, deducing, bypassing, examining). When the puzzle is solved or abandoned, call 'set_override_state: clear | investigation'.
@@ -737,7 +775,7 @@ Follow these strict DM instructions:
    Do NOT use meta-labels for any options. End with a note that they can describe their own action.
 5. Do NOT invent observations. Always call the tools if you need to know stats, roll checks, or get subagent states.
 6. ALWAYS write a log entry summarizing the outcome via the 'write_log_entry' tool. You MUST wait for the 'Observation:' before outputting your 'Answer:'. NEVER output 'Action:' and 'Answer:' in the same response!
-7. Combat Escalation & Execution: If a situation turns hostile (e.g., the player fails a stealth check, threatens an armed NPC, or is ambushed), you MUST NOT stall or politely wait for the player to get ready. You MUST instantly use 'trigger_encounter_architect' to formally start the combat engine, and narrate the enemy aggressively throwing the first punch. While an Active Encounter exists, you MUST use 'apply_combat_turn' on every single turn to execute the rounds mechanically.
+7. Combat Escalation & Execution: If a situation turns hostile (e.g., the player fails a stealth check, threatens an armed NPC, or is ambushed), you MUST instantly use 'trigger_encounter_architect' to formally start the combat engine. IMPORTANT AMBUSH RULE: When the encounter starts, check the Threat Level and Enemy Count in the Context block. If any enemy is Threat Level 5+ OR if there are 3+ enemies, you MUST NOT instantly attack. Instead, narrate the overwhelming, impending danger (a tense standoff) and offer the player a chance to retreat, hide, or prepare tactically. Only low-threat enemies (Threat 1-3) are allowed to freely ambush the player and throw the first punch. While an Active Encounter exists, you MUST use 'apply_combat_turn' on every single turn to execute the rounds mechanically.
    - LOOT: If `apply_combat_turn` returns `enemy_dead: true` and `loot_dropped`, you MUST explicitly narrate the player finding and looting those items in your Answer!
 8. Crafting is Freeform but Risky: If the player attempts to MacGyver or invent a custom item, verify they have logical materials in their inventory. You MUST call 'roll_ability_check' (e.g., logic, crafting, tinkering) to determine if they succeed.
    - If successful: Remove the materials and add the custom item with appropriate mechanical stats using 'modify_inventory'.
@@ -749,7 +787,7 @@ Follow these strict DM instructions:
 12. Travel Enforcement: The game now uses a strict Node-Graph for travel. The player MUST use the system [Travel] menu to move between locations. If they attempt to "travel to the capital" or walk to a new city via a custom text action, explicitly refuse the action and tell them they must use the [Travel] menu to navigate the map.
 13. Time Consumption: If the player attempts a long activity (e.g., sleeping, crafting all day, staking out a location), use the 'advance_time' tool to push the world clock forward by an appropriate number of turns (e.g., 2-4 turns for sleeping).
 14. World Aspects: Actively enforce any "Active World Aspects" present in your context block. If there is a Nemesis, introduce them into scenes; if there is High Heat, have guards patrol; if there is a Trauma/Scar, impose narrative penalties on the player's checks.
-15. Lore Accuracy: Use the 'query_world_bible' tool whenever the player asks about history/mythos, OR whenever you need to introduce a new region, enforce a cultural taboo, or determine the rules of magic/technology. Do not invent contradictory lore; always check the bible first if you lack context.
+15. Lore Accuracy: Use the 'query_world_bible' tool whenever the player asks about history/mythos, OR whenever you need to introduce a new region, enforce a cultural taboo, or determine the rules of magic/technology. Use the 'query_unlocked_lore' tool if the player asks about a specific Lore Title or Secret listed in your Context. Do not invent contradictory lore; always check these sources first if you lack context.
 16. Spatial Awareness: The player can ONLY interact with entities, items, and structures present in their 'Current Location'. If they attempt to interact with someone or something located elsewhere, refuse the action and remind them they are not there.
 17. Quest Confirmation: If the player's action successfully advances or completes an Active Quest, you MUST weave a very obvious diegetic confirmation directly into your narration (e.g., "You grab the datapad, knowing this is exactly the piece of the puzzle you needed to find the smuggler.") so the player confidently knows their action progressed the quest without needing meta system tags.
 18. Dramatic Pacing: Never trap the player in granular, boring point-and-click loops (e.g., 'You open the drawer, what next?'). If a player succeeds at a quest-related action, you MUST narrate a significant leap forward in the story, instantly pushing them into the next major, interesting scene or revelation.
@@ -758,11 +796,12 @@ Available Tools:
 - get_character_sheet: Returns JSON character sheet. Usage: Action: get_character_sheet
 - get_world_details: Returns JSON world details. Usage: Action: get_world_details
 - query_world_bible: Returns the full World Bible document (history, mythos, culture). Usage: Action: query_world_bible
+- query_unlocked_lore: Searches the full text of all Unlocked Lore and Secrets based on a keyword or title. Usage: Action: query_unlocked_lore: Old Empire
 - get_active_encounter: Returns active combat details if any. Usage: Action: get_active_encounter
 - roll_ability_check: Performs a d20 roll check. Format: 'tag_name | DC'. Usage: Action: roll_ability_check: stealth | 12
 - equip_item: Equips an item from the character inventory. Usage: Action: equip_item: sword
 - heal_character: Restores the character's HP. Usage: Action: heal_character: 10
-- apply_combat_turn: Resolves a combat round. Format: 'tag_name'. Usage: Action: apply_combat_turn: lasers
+- apply_combat_turn: Resolves a combat round. Format: 'target_index | tag_name'. Usage: Action: apply_combat_turn: 0 | lasers
 - trigger_world_keeper: Queries WorldKeeper subagent. Usage: Action: trigger_world_keeper: storm coming
 - trigger_faction_weaver: Queries FactionWeaver subagent. Usage: Action: trigger_faction_weaver: player attacked gang
 - trigger_encounter_architect: Queries EncounterArchitect. You MUST include the Current Location and the relevant Active Quest in your query so the encounter is heavily tied to the plot rather than just random filler. Usage: Action: trigger_encounter_architect: spawn an enemy in the Ruins holding the datapad for the smuggler quest
@@ -833,6 +872,32 @@ Available Tools:
         inv_list = [f"{item.name} ({item.description})" for item in char.inventory]
         tags_list = [f"{k} (+{v.modifier})" for k, v in char.abilities.tags.items()]
         
+        # Load current location and adjacent paths early for relevance filtering
+        current_loc = next((l for l in world.discovered_locations if l.id == getattr(world, 'current_location_id', None)), None)
+        if current_loc:
+            current_loc_str = f"{current_loc.name} [Type: {current_loc.type}] ({current_loc.description})"
+            connected_locs = [l for l in world.discovered_locations if l.id in current_loc.connections]
+            connected_str = ", ".join([l.name for l in connected_locs]) if connected_locs else "None"
+            local_rumors_list = current_loc.rumors
+        else:
+            current_loc_str = "Unknown"
+            connected_str = "None"
+            local_rumors_list = []
+            
+        rumors_str = ", ".join(local_rumors_list) if local_rumors_list else "None"
+
+        # Load active quests
+        active_quests_list = []
+        for q in world.active_quests:
+            if q.status == "active":
+                q_str = f"{q.name} ({q.description})"
+                if q.positive_consequence or q.negative_consequence:
+                    q_str += f" [Reward: {q.positive_consequence}] [Failure: {q.negative_consequence}]"
+                active_quests_list.append(q_str)
+        quests_str = ", ".join(active_quests_list) if active_quests_list else "None"
+
+        relevance_text = f"{current_loc_str} {rumors_str} {quests_str}".lower()
+        
         # Load factions to populate context snapshot
         factions_path = os.path.join("saves", self.campaign_slug, "factions.json")
         factions_summary = "None"
@@ -845,13 +910,16 @@ Available Tools:
                 factions_list = []
                 clocks_list = []
                 for f_id, f_info in f_data.get("factions", {}).items():
-                    npc_names = list(f_info.get("npcs", {}).keys())
-                    npc_str = f" (NPCs: {', '.join(npc_names)})" if npc_names else ""
-                    factions_list.append(f"{f_info.get('name', f_id)} [Rep: {f_info.get('reputation', 0)}]{npc_str}")
-                    
-                    # Read clocks
-                    for clock in f_info.get("clocks", []):
-                        clocks_list.append(f"{f_info.get('name', f_id)}: {clock['name']} ({clock['turns_remaining']} turns remaining)")
+                    f_name = f_info.get("name", f_id)
+                    # Political Pruning: only inject if relevant
+                    if f_name.lower() in relevance_text or f_id.lower() in relevance_text:
+                        npc_names = list(f_info.get("npcs", {}).keys())
+                        npc_str = f" (NPCs: {', '.join(npc_names)})" if npc_names else ""
+                        factions_list.append(f"{f_name} [Rep: {f_info.get('reputation', 0)}]{npc_str}")
+                        
+                        # Read clocks
+                        for clock in f_info.get("clocks", []):
+                            clocks_list.append(f"{f_name}: {clock['name']} ({clock['turns_remaining']} turns remaining)")
                         
                 if factions_list:
                     factions_summary = " | ".join(factions_list)
@@ -871,34 +939,6 @@ Available Tools:
         rel_list = [f"{name} ({rel})" for name, rel in char.relationships.items()]
         rel_str = ", ".join(rel_list) if rel_list else "None"
         
-        # Load discovered locations from world state
-        loc_list = [f"{loc.name} ({loc.type} - {loc.description})" for loc in world.discovered_locations]
-        loc_str = ", ".join(loc_list) if loc_list else "None"
-        
-        # Load active quests
-        active_quests_list = []
-        for q in world.active_quests:
-            if q.status == "active":
-                q_str = f"{q.name} ({q.description})"
-                if q.positive_consequence or q.negative_consequence:
-                    q_str += f" [Reward: {q.positive_consequence}] [Failure: {q.negative_consequence}]"
-                active_quests_list.append(q_str)
-        quests_str = ", ".join(active_quests_list) if active_quests_list else "None"
-
-        # Load current location and adjacent paths
-        current_loc = next((l for l in world.discovered_locations if l.id == getattr(world, 'current_location_id', None)), None)
-        if current_loc:
-            current_loc_str = f"{current_loc.name} [Type: {current_loc.type}] ({current_loc.description})"
-            connected_locs = [l for l in world.discovered_locations if l.id in current_loc.connections]
-            connected_str = ", ".join([l.name for l in connected_locs]) if connected_locs else "None"
-            local_rumors_list = current_loc.rumors
-        else:
-            current_loc_str = "Unknown"
-            connected_str = "None"
-            local_rumors_list = []
-            
-        rumors_str = ", ".join(local_rumors_list) if local_rumors_list else "None"
-        
         # Load active world aspects
         aspect_list = []
         for aspect in world.world_aspects:
@@ -914,7 +954,8 @@ Available Tools:
                 with open(lore_path, "r", encoding="utf-8") as f:
                     lore_data = json.load(f)
                 lore_titles = [entry.get("title") for entry in lore_data.get("unlocked_lore", [])]
-                secrets_list = lore_data.get("secrets", [])
+                raw_secrets = lore_data.get("secrets", [])
+                secrets_list = [s[:50] + "..." if len(s) > 50 else s for s in raw_secrets]
             except Exception:
                 pass
         lore_str = ", ".join(lore_titles) if lore_titles else "None"
@@ -935,7 +976,6 @@ Available Tools:
             f"Factions: {factions_summary} | "
             f"Faction Clocks: {clocks_summary} | "
             f"Faction Events: {recent_events_summary} | "
-            f"Discovered Locations: {loc_str} | "
             f"Active Quests: {quests_str} | "
             f"Campaign Arc: {world.campaign_arc} | "
             f"Current Location: {current_loc_str} | "
@@ -958,14 +998,16 @@ Available Tools:
                 with open(enc_path, "r", encoding="utf-8") as f:
                     enc_data = json.load(f)
                 ae = enc_data.get("active_encounter")
-                if ae and ae.get("enemy"):
-                    enemy_info = ae["enemy"]
-                    hp_pct = (enemy_info.get("hp", 1) / max(enemy_info.get("max_hp", 1), 1)) * 100
-                    enemy_cond = "Healthy" if hp_pct >= 70 else "Wounded" if hp_pct >= 30 else "Near Death"
-                    active_enemy_str = (
-                        f"{enemy_info.get('name', 'Enemy')} "
-                        f"[HP: {enemy_info.get('hp')}/{enemy_info.get('max_hp')} — {enemy_cond}]"
-                    )
+                if ae and ae.get("enemies"):
+                    enemy_strs = []
+                    for idx, e in enumerate(ae["enemies"]):
+                        if e.get("hp", 0) <= 0:
+                            enemy_strs.append(f"[{idx}] {e.get('name')} (DEAD)")
+                        else:
+                            hp_pct = (e.get("hp", 1) / max(e.get("max_hp", 1), 1)) * 100
+                            cond = "Healthy" if hp_pct >= 70 else "Wounded" if hp_pct >= 30 else "Near Death"
+                            enemy_strs.append(f"[{idx}] {e.get('name')} (Threat: {e.get('threat_level', 1)} | HP: {e.get('hp')}/{e.get('max_hp')} — {cond})")
+                    active_enemy_str = " | ".join(enemy_strs)
             except Exception:
                 pass
 
@@ -973,11 +1015,12 @@ Available Tools:
             # Hard-inject combat override: player's chosen action becomes a combat action context
             query = (
                 f"⚠️ ACTIVE COMBAT — COMBAT OVERRIDE IS MANDATORY. "
-                f"Active Enemy: {active_enemy_str}. "
+                f"Active Enemies: {active_enemy_str}. "
                 f"The player attempted: '{player_action}'. "
-                f"Interpret this action in the context of the ongoing fight (e.g., if they tried to use an item, narrate it as a mid-combat action and still resolve the enemy's counterattack). "
-                f"You MUST call 'apply_combat_turn' to resolve this round mechanically. "
-                f"You MUST NOT exit combat or present non-combat options until 'get_active_encounter' returns no active enemy.\n"
+                f"Interpret this action in the context of the ongoing fight (e.g., if they tried to use an item, narrate it as a mid-combat action and still resolve the enemies' attacks). "
+                f"You MUST call 'apply_combat_turn' using the integer target index (e.g. 0 or 1) to resolve this round mechanically. "
+                f"When generating the 3-4 player choices, you MUST explicitly indicate which enemy they are targeting if there are multiple (e.g., 'Attack [0] Goblin A with your sword'). "
+                f"You MUST NOT exit combat or present non-combat options until 'get_active_encounter' returns no active enemies.\n"
                 f"Context: {context_str}"
             )
         elif world.survival_situation:

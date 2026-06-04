@@ -47,11 +47,11 @@ def test_ability_system():
     # Test progression (learn-by-doing)
     # stealth is +2. threshold for +2 to +3 is (2+1)*3 = 9 ticks.
     for i in range(8):
-        prog, mod = abilities.tick_usage("stealth")
+        prog, mod, tag = abilities.tick_usage("stealth")
         assert not prog
         assert mod == 2
         
-    prog, mod = abilities.tick_usage("stealth")
+    prog, mod, tag = abilities.tick_usage("stealth")
     assert prog
     assert mod == 3
     assert abilities.get_modifier("stealth") == 3

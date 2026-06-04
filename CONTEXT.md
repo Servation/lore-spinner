@@ -34,7 +34,13 @@ The subagent responsible for world history, hidden secrets, quest hooks, and nar
 A named skill or trait attached to a character with a hidden numeric modifier (e.g., `swordsmanship: +3`). Tags are the fundamental unit of character capability. Not all characters share the same tags — they are accumulated through backstory, experience, items, and environment.
 
 ### Tag Progression (Learn-by-Doing)
-The system by which ability tags improve through use. When a character successfully uses a tag in a relevant context repeatedly, the tag's modifier increases. Progression thresholds are tracked by usage count.
+The system by which ability tags improve through use. When a character successfully uses an innate tag in a relevant context repeatedly, the tag's modifier increases. Progression thresholds are tracked by usage count. 
+- **High-Tier Maneuvers**: As tags reach higher modifier tiers (e.g., +3 or higher), the DM is instructed to unlock and offer special tactical maneuvers in combat (like 'cleave', 'double attack', or 'precision shot').
+
+### Character Health Scaling
+Max HP is not purely static. It grows in two ways:
+1. **Physical Tag Progression**: Leveling up physical or combat tags (e.g., `athletics`, `combat`, `fortitude`) permanently grants a small boost (e.g., +5) to Max HP.
+2. **Artifact Upgrades**: Max HP can be upgraded by finding and consuming rare items, cybernetics, or magical blessings in the world.
 
 ### Hidden Stats
 The design philosophy where all character mechanics (ability tags, modifiers, dice rolls, difficulty classes) are invisible to the player during normal gameplay. The player experiences outcomes through narrative description only. Stats can be inspected via saved JSON files or explicit Out-of-Character requests.

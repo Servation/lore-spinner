@@ -24,7 +24,7 @@ You run in a ReAct loop. When called:
 4. Output your final Answer explaining what encounter was configured.
 
 Your tools are:
-- spawn_encounter: Spawns an enemy. Format: 'enemy_name | threat_level | setting_genre | narrative_desc'. Usage: Action: spawn_encounter: Security Droid | 2 | cyberpunk | A floating droid with electric stun-rods.
+- spawn_encounter: Spawns enemies. Format: 'enemy_name | threat_level | setting_genre | count | narrative_desc'. Usage: Action: spawn_encounter: Security Droid | 2 | cyberpunk | 3 | A patrol of 3 droids.
 - add_loot: Configures loot. Format: 'item_name | description | slot | tag_modifiers_json'. Usage: Action: add_loot: Reflex Booster | Cybernetic implant giving reflex gains | accessory | {"evasion": 1}
 - clear_encounter: Resets the active encounter when combat is finished. Usage: Action: clear_encounter
 """
@@ -32,24 +32,57 @@ Your tools are:
 
     def _get_tools(self) -> Dict[str, Callable[[str], str]]:
         def spawn_encounter(args: str) -> str:
-            if args.count("|") < 3:
-                return "Error: Format must be 'enemy_name | threat_level | setting_genre | narrative_desc'"
-            parts = args.split("|", 3)
+            if args.count("|") < 4:
+                return "Error: Format must be 'enemy_name | threat_level | setting_genre | count | narrative_desc'"
+            parts = args.split("|", 4)
             name = parts[0].strip()
             try:
                 threat = int(parts[1].strip())
             except ValueError:
                 return "Error: Threat level must be an integer."
             genre = parts[2].strip()
-            desc = parts[3].strip()
             
-            # Generate the enemy object from our engine
-            enemy = generate_enemy(name, threat, genre)
+            try:
+                count = int(parts[3].strip())
+                count = max(1, min(count, 5)) # Cap between 1 and 5 enemies
+            except ValueError:
+                return "Error: Count must be an integer."
+                
+            desc = parts[4].strip()
+            
+            # Generate the enemy objects
+            enemies = []
+            for i in range(count):
+                enemy = generate_enemy(f"{name} {chr(65+i)}" if count > 1 else name, threat, genre)
+                enemies.append(enemy)
+                
+            # Get player speed to roll initiative
+            player_speed = 2
+            char_path = os.path.join("saves", self.campaign_slug, "character.json")
+            if os.path.exists(char_path):
+                try:
+                    with open(char_path, "r", encoding="utf-8") as f:
+                        c_data = json.load(f)
+                        player_speed = c_data.get("speed", 2)
+                except Exception:
+                    pass
+                    
+            from game_engine.dice import roll
+            
+            initiatives = []
+            initiatives.append({"id": "player", "name": "Player", "roll": roll(20) + player_speed})
+            
+            for idx, enemy in enumerate(enemies):
+                initiatives.append({"id": f"enemy_{idx}", "name": enemy.name, "roll": roll(20) + enemy.speed})
+                
+            # Sort by roll descending
+            initiatives.sort(key=lambda x: x["roll"], reverse=True)
             
             path = os.path.join("saves", self.campaign_slug, "encounters.json")
             data = {
                 "active_encounter": {
-                    "enemy": enemy.to_dict(),
+                    "enemies": [e.to_dict() for e in enemies],
+                    "initiative_order": initiatives,
                     "description": desc
                 },
                 "recent_loot": []
@@ -57,7 +90,7 @@ Your tools are:
             
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
-            return f"Spawned encounter '{name}' (Threat {threat}) successfully."
+            return f"Spawned encounter '{name}' x{count} (Threat {threat}) successfully."
 
         def add_loot(args: str) -> str:
             if args.count("|") < 3:
