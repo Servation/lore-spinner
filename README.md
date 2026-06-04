@@ -17,6 +17,7 @@ An immersive, text-based narrative role-playing game powered by a multi-agent AI
 - **Autonomous Faction Projects**: Factions independently pursue long-term, background goals (e.g., "Researching a cure"). The Faction Weaver tracks these mechanical countdowns during heartbeats. Upon completion, they fire narrative events and can permanently alter the World State.
 - **Intelligent Option Generation**: The DM intelligently adapts the 4 interactive choices based on context:
   - **Survival Override**: Immediate life-threatening danger forces all choices into desperate escape/survival attempts.
+  - **Combat Override**: Active combat forces choices into tactical maneuvers, attacks, spells, or fleeing.
   - **Social Override**: Intense conversations force choices into dialogue options.
   - **Camping Override**: Resting shifts choices to camp activities while enforcing bodily needs (hunger/exhaustion).
   - **Exploration & Progression**: Subtly weaves in progression for *every* local quest, ignores distant quests, and rarely tempts the player with a character-specific High Risk/High Reward option.
