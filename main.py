@@ -869,22 +869,27 @@ def game_loop(llm_client, campaign_slug: str):
                 print("The DM will resolve your death contextually based on the story.")
                 input("Press Enter to continue...")
                 
-                # Prevent infinite death loop by mechanically reviving to 1 HP.
-                # The DM will handle the narrative consequences (and can use heal_character if needed).
-                char.hp = 1
-                with open(char_path, "w", encoding="utf-8") as f:
-                    json.dump(char.to_dict(), f, indent=4)
-                
-                # DM processes recovery or death
-                response = dm.process_turn("⚠️ FATAL INJURY: The character has dropped to 0 HP. You MUST resolve this death contextually based on the story. Either narrate them waking up after being saved/captured (and optionally use 'heal_character' to give them more HP), OR if the situation was inescapably lethal, narrate their permanent death.")
-                print_styled(f"\n{response}", theme.color_dm)
-                active_choices = extract_choices(response)
-                
-                # Save the last narrative to world state and update it on disk
-                world.last_narrative = response
-                world_path = os.path.join("saves", campaign_slug, "world_state.json")
-                with open(world_path, "w", encoding="utf-8") as f:
-                    json.dump(world.to_dict(), f, indent=4)
+                if char.miracles > 0:
+                    char.miracles -= 1
+                    char.hp = 1  # Mechanically revive to 1 HP
+                    with open(char_path, "w", encoding="utf-8") as f:
+                        json.dump(char.to_dict(), f, indent=4)
+                    
+                    # DM processes miraculous recovery
+                    response = dm.process_turn("⚠️ FATAL INJURY: The character has dropped to 0 HP but miraculously survived against all odds (they used their 1-time miracle revival). You MUST resolve this near-death experience contextually based on the story. Narrate how they barely survived, waking up after being saved, captured, or washing ashore. Impose a narrative penalty (e.g. lost gear, time passed, or new scar).")
+                    print_styled(f"\n{response}", theme.color_dm)
+                    active_choices = extract_choices(response)
+                    
+                    world.last_narrative = response
+                    world_path = os.path.join("saves", campaign_slug, "world_state.json")
+                    with open(world_path, "w", encoding="utf-8") as f:
+                        json.dump(world.to_dict(), f, indent=4)
+                else:
+                    # Permanent death
+                    response = dm.process_turn("⚠️ PERMANENT DEATH: The character has dropped to 0 HP and has no miracles remaining. This is a final Game Over. You MUST narrate their tragic, final death based on the immediate context. Do not offer any choices. End the narration by confirming their demise.")
+                    print_styled(f"\n{response}", theme.color_dm)
+                    print_styled("\n[ GAME OVER - Your story ends here. ]", COLOR_ERROR)
+                    break
                 
         except KeyboardInterrupt:
             print_styled("\nSaving game... Goodbye!", COLOR_SYSTEM)

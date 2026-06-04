@@ -17,6 +17,7 @@ class Character:
     status_effects: List[dict] = field(default_factory=list)  # e.g., [{"name": "poison", "modifiers": {"stamina": -2}, "duration": 3}]
     position: str = "Start"
     relationships: Dict[str, str] = field(default_factory=dict)
+    miracles: int = 1  # Number of times the character can miraculously survive a fatal injury
 
     def is_alive(self) -> bool:
         return self.hp > 0
@@ -142,7 +143,8 @@ class Character:
             "equipped": {slot: item.to_dict() for slot, item in self.equipped.items()},
             "status_effects": self.status_effects,
             "position": self.position,
-            "relationships": self.relationships
+            "relationships": self.relationships,
+            "miracles": self.miracles
         }
 
     @classmethod
@@ -162,6 +164,7 @@ class Character:
             equipped={slot: Item.from_dict(item_data) for slot, item_data in data.get("equipped", {}).items()},
             status_effects=data.get("status_effects", []),
             position=data.get("position", "Start"),
-            relationships=data.get("relationships", {})
+            relationships=data.get("relationships", {}),
+            miracles=data.get("miracles", 1)
         )
         return char
