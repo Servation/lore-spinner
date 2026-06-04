@@ -873,8 +873,43 @@ Available Tools:
             f"Secrets: {secrets_str}\n"
             f"World Bible Summary: {world.world_bible_summary}"
         )
-        
-        query = f"Player Action: {player_action}.\nContext: {context_str}"
+
+        # --- COMBAT ENFORCEMENT ---
+        # Mechanically check if an active encounter exists on disk.
+        # If so, override the player's action with a combat-locked prompt so the DM
+        # CANNOT ignore the fight regardless of what the player chose to do.
+        enc_path = os.path.join("saves", self.campaign_slug, "encounters.json")
+        active_enemy_str = None
+        if os.path.exists(enc_path):
+            try:
+                with open(enc_path, "r", encoding="utf-8") as f:
+                    enc_data = json.load(f)
+                ae = enc_data.get("active_encounter")
+                if ae and ae.get("enemy"):
+                    enemy_info = ae["enemy"]
+                    hp_pct = (enemy_info.get("hp", 1) / max(enemy_info.get("max_hp", 1), 1)) * 100
+                    enemy_cond = "Healthy" if hp_pct >= 70 else "Wounded" if hp_pct >= 30 else "Near Death"
+                    active_enemy_str = (
+                        f"{enemy_info.get('name', 'Enemy')} "
+                        f"[HP: {enemy_info.get('hp')}/{enemy_info.get('max_hp')} — {enemy_cond}]"
+                    )
+            except Exception:
+                pass
+
+        if active_enemy_str:
+            # Hard-inject combat override: player's chosen action becomes a combat action context
+            query = (
+                f"⚠️ ACTIVE COMBAT — COMBAT OVERRIDE IS MANDATORY. "
+                f"Active Enemy: {active_enemy_str}. "
+                f"The player attempted: '{player_action}'. "
+                f"Interpret this action in the context of the ongoing fight (e.g., if they tried to use an item, narrate it as a mid-combat action and still resolve the enemy's counterattack). "
+                f"You MUST call 'apply_combat_turn' to resolve this round mechanically. "
+                f"You MUST NOT exit combat or present non-combat options until 'get_active_encounter' returns no active enemy.\n"
+                f"Context: {context_str}"
+            )
+        else:
+            query = f"Player Action: {player_action}.\nContext: {context_str}"
+
         if heartbeat_occurred:
             query += f" Note: A world heartbeat just triggered: {heartbeat_log}."
             
