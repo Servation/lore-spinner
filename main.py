@@ -868,9 +868,16 @@ def game_loop(llm_client, campaign_slug: str):
                 print_styled("\n!!! YOU HAVE FALLEN !!!", COLOR_ERROR)
                 print("The DM will resolve your death contextually based on the story.")
                 input("Press Enter to continue...")
+                
+                # Prevent infinite death loop by mechanically reviving to 1 HP.
+                # The DM will handle the narrative consequences (and can use heal_character if needed).
+                char.hp = 1
+                with open(char_path, "w", encoding="utf-8") as f:
+                    json.dump(char.to_dict(), f, indent=4)
+                
                 # DM processes recovery or death
-                response = dm.process_turn("The character has run out of health. Narration must resolve this death contextually (checkpoint reset, penalty recovery, or permanent death).")
-                print_styled(f"\n{response}", COLOR_DM)
+                response = dm.process_turn("⚠️ FATAL INJURY: The character has dropped to 0 HP. You MUST resolve this death contextually based on the story. Either narrate them waking up after being saved/captured (and optionally use 'heal_character' to give them more HP), OR if the situation was inescapably lethal, narrate their permanent death.")
+                print_styled(f"\n{response}", theme.color_dm)
                 active_choices = extract_choices(response)
                 
                 # Save the last narrative to world state and update it on disk
