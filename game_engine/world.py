@@ -129,6 +129,7 @@ class WorldState:
     social_encounter: str = ""     # Non-empty = Social Override active; describes who and the stakes
     stealth_mission: str = ""      # Non-empty = Stealth Override active; describes the infiltration target
     investigation_focus: str = ""  # Non-empty = Investigation Override active; describes the puzzle/scene
+    travel_journey: str = ""       # Non-empty = Travel Override active; describes the route and destination
     is_camping: bool = False        # True = Camping Override active
 
     TIMES_OF_DAY = ["Morning", "Noon", "Afternoon", "Dusk", "Night", "Midnight"]
@@ -226,6 +227,7 @@ class WorldState:
             "social_encounter": self.social_encounter,
             "stealth_mission": self.stealth_mission,
             "investigation_focus": self.investigation_focus,
+            "travel_journey": self.travel_journey,
             "is_camping": self.is_camping
         }
 
@@ -270,5 +272,6 @@ class WorldState:
             social_encounter=data.get("social_encounter", ""),
             stealth_mission=data.get("stealth_mission", ""),
             investigation_focus=data.get("investigation_focus", ""),
+            travel_journey=data.get("travel_journey", ""),
             is_camping=data.get("is_camping", False)
         )

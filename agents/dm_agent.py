@@ -597,13 +597,14 @@ class DMAgent(BaseAgent):
         def set_override_state(args: str) -> str:
             """Locks the game into a Situational Override state so it persists across turns.
             Format: 'state | description'.
-            States: 'survival', 'social', 'stealth', 'investigation', 'camping'.
+            States: 'survival', 'social', 'stealth', 'investigation', 'travel', 'camping'.
             Use 'clear' to end a state: 'clear | stealth' or 'clear | all'.
             Examples:
               Action: set_override_state: survival | Falling from the bridge with no handhold
               Action: set_override_state: social | Interrogation by Captain Voss — she suspects the player
               Action: set_override_state: stealth | Sneaking through the Corporate Data-Vault
               Action: set_override_state: investigation | Hacking the mainframe terminal
+              Action: set_override_state: travel | 3-day journey across the Blasted Wastes to reach the Capital
               Action: set_override_state: camping | Player's campfire in the Blighted Woods
               Action: set_override_state: clear | social
             """
@@ -620,6 +621,7 @@ class DMAgent(BaseAgent):
                 if target in ("social", "all"): world.social_encounter = ""
                 if target in ("stealth", "all"): world.stealth_mission = ""
                 if target in ("investigation", "all"): world.investigation_focus = ""
+                if target in ("travel", "all"): world.travel_journey = ""
                 if target in ("camping", "all"): world.is_camping = False
                 with open(world_path, "w", encoding="utf-8") as f:
                     json.dump(world.to_dict(), f, indent=4)
@@ -644,12 +646,17 @@ class DMAgent(BaseAgent):
                 with open(world_path, "w", encoding="utf-8") as f:
                     json.dump(world.to_dict(), f, indent=4)
                 return f"Investigation Override activated: '{desc}'."
+            elif state == "travel":
+                world.travel_journey = desc
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                return f"Travel Override activated: '{desc}'."
             elif state == "camping":
                 world.is_camping = True
                 with open(world_path, "w", encoding="utf-8") as f:
                     json.dump(world.to_dict(), f, indent=4)
                 return f"Camping Override activated: '{desc}'."
-            return "Error: State must be 'survival', 'social', 'stealth', 'investigation', 'camping', or 'clear'."
+            return "Error: State must be 'survival', 'social', 'stealth', 'investigation', 'travel', 'camping', or 'clear'."
 
         return {
             "get_character_sheet": get_character_sheet,
@@ -720,10 +727,11 @@ Follow these strict DM instructions:
    - STEALTH OVERRIDE: If the player enters a hostile area but combat hasn't started (e.g., sneaking through a compound), you MUST call 'set_override_state: stealth | [target location or enemy]' to lock this mode. ALL choices must be restricted to quiet movement, observing patrols, finding cover, or silent takedowns. When the player gets caught (combat starts) or escapes, call 'set_override_state: clear | stealth'.
    - SOCIAL OVERRIDE: If the player enters an intense, locked conversation or negotiation (interrogation, tense standoff, seduction, diplomacy), you MUST call 'set_override_state: social | [who + the stakes]' to lock this mode, and ALL choices must be dialogue options or social actions. When the conversation resolves, call 'set_override_state: clear | social'.
    - INVESTIGATION OVERRIDE: If the player is solving a specific puzzle, hacking a terminal, or examining a crime scene, you MUST call 'set_override_state: investigation | [puzzle description]' to lock this mode. ALL choices must be focused intellectual actions (scanning, deducing, bypassing, examining). When the puzzle is solved or abandoned, call 'set_override_state: clear | investigation'.
+   - TRAVEL OVERRIDE: If the player initiates a long journey to a new major location via the node map, you MUST call 'set_override_state: travel | [journey description]' to lock this mode. ALL choices must focus on navigating the road (foraging, resting, dealing with weather/bandits/hazards). Use 'trigger_world_keeper' to advance time, which naturally depletes Hunger/Fatigue over the trip. When they arrive at the destination, call 'set_override_state: clear | travel'.
    - CAMPING OVERRIDE: If the player sets up camp or rests, you MUST call 'set_override_state: camping | [camp description]' to lock this mode. ALL choices must be camp activities (eating, tending wounds, crafting, sleeping, bonding). The 'Hunger' and 'Fatigue' fields in Context are the ground truth for bodily needs — use 'trigger_world_keeper' with 'set_bodily_needs' to update them when the player eats or sleeps. When the player breaks camp, call 'set_override_state: clear | camping'.
    
    *BREAKOUT OPTIONS & CUSTOM ACTIONS:*
-   For Stealth, Social, Investigation, and Camping overrides ONLY, you MUST usually dedicate one option to logically abandoning the task or breaking out of the mode (e.g., "Abandon the hack and step away from the terminal", "Insult the Captain and draw your weapon"). If a player selects this option, or if they type a Custom Action that intentionally ignores the override context to do something drastically different (e.g., pulling a gun mid-negotiation), you must evaluate if the breakout makes narrative sense. If it does, naturally transition the scene, call 'set_override_state: clear | [state]', and trigger the appropriate tools (like 'trigger_encounter_architect' for sudden violence).
+   For Stealth, Social, Investigation, Travel, and Camping overrides ONLY, you MUST usually dedicate one option to logically abandoning the task or breaking out of the mode (e.g., "Abandon the hack and step away from the terminal", "Insult the Captain and draw your weapon", "Turn back from the road"). If a player selects this option, or if they type a Custom Action that intentionally ignores the override context to do something drastically different (e.g., pulling a gun mid-negotiation), you must evaluate if the breakout makes narrative sense. If it does, naturally transition the scene, call 'set_override_state: clear | [state]', and trigger the appropriate tools (like 'trigger_encounter_architect' for sudden violence).
    
    - DEFAULT EXPLORATION (If none of the above apply): You MUST heavily accelerate the story pacing to prevent boring, slow loops. For any Active Quest in the Current Location, dedicate 1-2 options to progressing it in DIFFERENT ways (e.g., a stealth approach vs a technical approach). You MUST make these options highly insightful by explicitly weaving in natural narrative hints about "what to do next". (IMPORTANT: NEVER use immersion-breaking meta-words like "breadcrumb", "clue", "quest", or "plot" in your actual story text). Crucially, if the player possesses specific items in their 'Inventory', or has 'Unlocked Lore'/'Secrets' that act as prerequisites, you MUST weave those specific advantages into the options (e.g., "Use the Black-Site Passcard you found earlier to bypass the heavy security door"). Rarely (10% of the time), include a High Risk / High Reward option. Remaining non-quest options MUST be highly thematic to the 'Current Location' Type but kept as low-stakes background flavor so they are not overwhelming (e.g., if in a 'City', offer to browse a market or listen to a street preacher; if in 'Ruins', offer to scavenge basic scrap or inspect strange flora). Do NOT offer high-stakes thematic events (like deadly traps or gang ambushes) every turn; keep them rare. Make it extremely clear through your vivid descriptions whether an option pushes the main story forward or is just casual flavor exploration.
    Do NOT use meta-labels for any options. End with a note that they can describe their own action.
@@ -772,7 +780,7 @@ Available Tools:
 - write_log_entry: Saves a narrative bullet summary. Usage: Action: write_log_entry: Escaped the corporate droid in the noodle shop.
 - modify_world_aspect: Adds, updates or removes a World Aspect (Nemesis, Doom Clock, Heat, Trauma, Rule). Format: 'add | Name | Type | Description | [intensity]' or 'remove | Name'. Usage: Action: modify_world_aspect: remove | The Iron Warden
 - add_quest_note: Appends a contextual discovery note to an active quest (e.g. a found passcard, a heard rumor). Format: 'Quest Name | Note'. Usage: Action: add_quest_note: The Lost Shipment | Found a partial manifest in the smuggler's coat.
-- set_override_state: Locks the game into a Situational Override so it persists mechanically. You MUST call this when entering/exiting Survival, Stealth, Social, Investigation, or Camping scenes. Format: 'state | description' or 'clear | state'. States: survival, stealth, social, investigation, camping, clear. Usage examples: Action: set_override_state: stealth | Data-Vault | Action: set_override_state: clear | stealth
+- set_override_state: Locks the game into a Situational Override so it persists mechanically. You MUST call this when entering/exiting Survival, Stealth, Social, Investigation, Travel, or Camping scenes. Format: 'state | description' or 'clear | state'. States: survival, stealth, social, investigation, travel, camping, clear. Usage examples: Action: set_override_state: stealth | Data-Vault | Action: set_override_state: clear | stealth
 """
 
     def process_turn(self, player_action: str) -> str:
@@ -1012,6 +1020,17 @@ Available Tools:
                 f"ALL options MUST be focused intellectual actions regarding this puzzle/scene. "
                 f"When the puzzle is solved, or if the player abandons the task, you MUST call 'set_override_state: clear | investigation' to end this lock.\n"
                 f"NOTE: If the player attempts a custom action that intentionally breaks this context, transition the scene and clear this state.\n"
+                f"Context: {context_str}"
+            )
+        elif world.travel_journey:
+            # Travel override — player is on a road trip between locations
+            query = (
+                f"⚠️ TRAVEL JOURNEY — TRAVEL OVERRIDE IS MANDATORY. "
+                f"Route: {world.travel_journey}. "
+                f"The player attempted: '{player_action}'. "
+                f"ALL options MUST be focused on the journey (foraging, making camp, dealing with roadside events/hazards). Do not offer full location exploration until they arrive. "
+                f"When the player finally arrives at the destination, you MUST call 'set_override_state: clear | travel' to end this lock.\n"
+                f"NOTE: If the player attempts a custom action to abandon the journey and turn back, transition the scene and clear this state.\n"
                 f"Context: {context_str}"
             )
         elif world.is_camping:
