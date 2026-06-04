@@ -8,6 +8,8 @@ class Quest:
     name: str
     description: str
     status: str = "active"  # "active", "completed", "failed"
+    positive_consequence: str = ""
+    negative_consequence: str = ""
     notes: List[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -16,6 +18,8 @@ class Quest:
             "name": self.name,
             "description": self.description,
             "status": self.status,
+            "positive_consequence": self.positive_consequence,
+            "negative_consequence": self.negative_consequence,
             "notes": self.notes
         }
 
@@ -26,31 +30,76 @@ class Quest:
             name=data.get("name", "Unknown Quest"),
             description=data.get("description", ""),
             status=data.get("status", "active"),
+            positive_consequence=data.get("positive_consequence", ""),
+            negative_consequence=data.get("negative_consequence", ""),
             notes=data.get("notes", [])
         )
 
 @dataclass
 class Location:
+    id: str
     name: str
     description: str
-    type: str  # "city", "natural wonder", "point of interest", "dungeon", etc.
+    type: str # 'city', 'dungeon', 'landmark'
     discovered_turn: int
+    connections: List[str] = field(default_factory=list)
+    scope: str = "node" # 'node', 'region'
+    parent_region_id: str = ""
+    theme: str = "default"
+    rumors: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "type": self.type,
+            "discovered_turn": self.discovered_turn,
+            "connections": self.connections,
+            "scope": self.scope,
+            "parent_region_id": self.parent_region_id,
+            "theme": self.theme,
+            "rumors": self.rumors
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Location':
+        import uuid
+        return cls(
+            id=data.get("id", str(uuid.uuid4())),
+            name=data["name"],
+            description=data["description"],
+            type=data["type"],
+            discovered_turn=data["discovered_turn"],
+            connections=data.get("connections", []),
+            scope=data.get("scope", "node"),
+            parent_region_id=data.get("parent_region_id", ""),
+            theme=data.get("theme", "default"),
+            rumors=data.get("rumors", [])
+        )
+
+@dataclass
+class WorldAspect:
+    name: str
+    type: str  # "Nemesis", "Doom Clock", "Heat", "Trauma", "Rule"
+    description: str
+    intensity: int = 1
 
     def to_dict(self) -> dict:
         return {
             "name": self.name,
-            "description": self.description,
             "type": self.type,
-            "discovered_turn": self.discovered_turn
+            "description": self.description,
+            "intensity": self.intensity
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Location":
+    def from_dict(cls, data: dict) -> "WorldAspect":
         return cls(
-            name=data.get("name", "Unknown Location"),
+            name=data.get("name", "Unknown Aspect"),
+            type=data.get("type", "Rule"),
             description=data.get("description", ""),
-            type=data.get("type", "point of interest"),
-            discovered_turn=data.get("discovered_turn", 0)
+            intensity=data.get("intensity", 1)
         )
 
 @dataclass
@@ -66,6 +115,11 @@ class WorldState:
     next_heartbeat_turn: int = 0
     last_narrative: str = ""
     discovered_locations: List[Location] = field(default_factory=list)
+    campaign_arc: str = ""
+    escalated_rumors: List[str] = field(default_factory=list)
+    world_aspects: List[WorldAspect] = field(default_factory=list)
+    world_bible_summary: str = ""
+    current_location_id: str = ""
 
     TIMES_OF_DAY = ["Morning", "Noon", "Afternoon", "Dusk", "Night", "Midnight"]
 
@@ -93,12 +147,12 @@ class WorldState:
         clean_name = name.strip().lower()
         self.environmental_modifiers = [t for t in self.environmental_modifiers if t.name != clean_name]
 
-    def add_quest(self, quest_id: str, name: str, description: str) -> None:
+    def add_quest(self, quest_id: str, name: str, description: str, pos_conseq: str = "", neg_conseq: str = "") -> None:
         # Check if already exists
         for q in self.active_quests:
             if q.id == quest_id:
                 return
-        self.active_quests.append(Quest(id=quest_id, name=name, description=description))
+        self.active_quests.append(Quest(id=quest_id, name=name, description=description, positive_consequence=pos_conseq, negative_consequence=neg_conseq))
 
     def update_quest_status(self, quest_id: str, status: str) -> bool:
         for q in self.active_quests:
@@ -113,6 +167,21 @@ class WorldState:
                 q.notes.append(note)
                 return True
         return False
+
+    def add_aspect(self, name: str, a_type: str, description: str, intensity: int = 1) -> None:
+        clean_name = name.strip().lower()
+        for aspect in self.world_aspects:
+            if aspect.name.lower() == clean_name:
+                aspect.intensity = intensity
+                aspect.description = description
+                return
+        self.world_aspects.append(WorldAspect(name=name, type=a_type, description=description, intensity=intensity))
+
+    def remove_aspect(self, name: str) -> bool:
+        clean_name = name.strip().lower()
+        initial_len = len(self.world_aspects)
+        self.world_aspects = [a for a in self.world_aspects if a.name.lower() != clean_name]
+        return len(self.world_aspects) < initial_len
 
     def to_dict(self) -> dict:
         return {
@@ -134,7 +203,12 @@ class WorldState:
             ],
             "next_heartbeat_turn": self.next_heartbeat_turn,
             "last_narrative": self.last_narrative,
-            "discovered_locations": [l.to_dict() for l in self.discovered_locations]
+            "discovered_locations": [l.to_dict() for l in self.discovered_locations],
+            "campaign_arc": self.campaign_arc,
+            "escalated_rumors": self.escalated_rumors,
+            "world_aspects": [a.to_dict() for a in self.world_aspects],
+            "world_bible_summary": self.world_bible_summary,
+            "current_location_id": self.current_location_id
         }
 
     @classmethod
@@ -165,5 +239,10 @@ class WorldState:
             environmental_modifiers=env_mods,
             next_heartbeat_turn=data.get("next_heartbeat_turn", 0),
             last_narrative=data.get("last_narrative", ""),
-            discovered_locations=[Location.from_dict(ld) for ld in data.get("discovered_locations", [])]
+            discovered_locations=[Location.from_dict(ld) for ld in data.get("discovered_locations", [])],
+            campaign_arc=data.get("campaign_arc", ""),
+            escalated_rumors=data.get("escalated_rumors", []),
+            world_aspects=[WorldAspect.from_dict(ad) for ad in data.get("world_aspects", [])],
+            world_bible_summary=data.get("world_bible_summary", ""),
+            current_location_id=data.get("current_location_id", "")
         )

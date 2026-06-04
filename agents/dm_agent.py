@@ -45,6 +45,14 @@ class DMAgent(BaseAgent):
             with open(path, "r", encoding="utf-8") as f:
                 return f.read()
 
+        def query_world_bible(dummy: str) -> str:
+            """Usage: Action: query_world_bible"""
+            path = os.path.join("saves", self.campaign_slug, "world_bible.md")
+            if not os.path.exists(path):
+                return "Error: World Bible not found."
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+
         def get_active_encounter(dummy: str) -> str:
             path = os.path.join("saves", self.campaign_slug, "encounters.json")
             if not os.path.exists(path):
@@ -440,6 +448,92 @@ class DMAgent(BaseAgent):
             else:
                 return "Error: Operation must be 'add' or 'update'."
 
+        def add_location_rumor(args: str) -> str:
+            """Format: 'Location Name | Rumor text'
+            Example: Action: add_location_rumor: Cinder Spire | The fire elementals are restless.
+            """
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 2:
+                return "Error: Format must be 'Location Name | Rumor text'"
+            loc_name, rumor = parts[0], parts[1]
+            
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world = WorldState.from_dict(json.load(f))
+                
+            for loc in world.discovered_locations:
+                if loc.name.lower() == loc_name.lower():
+                    loc.rumors.append(rumor)
+                    with open(world_path, "w", encoding="utf-8") as f:
+                        json.dump(world.to_dict(), f, indent=4)
+                    return f"Added rumor to '{loc.name}'."
+            return f"Error: Location '{loc_name}' not found."
+
+        def resolve_location_rumor(args: str) -> str:
+            """Format: 'Location Name | Rumor text | escalated(true/false)'
+            Example: Action: resolve_location_rumor: Cinder Spire | The fire elementals are restless | true
+            """
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 2:
+                return "Error: Format must be 'Location Name | Rumor text | true/false'"
+            loc_name, rumor = parts[0], parts[1]
+            escalated = False
+            if len(parts) > 2:
+                escalated = parts[2].lower() in ["true", "yes", "1"]
+            
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world = WorldState.from_dict(json.load(f))
+                
+            for loc in world.discovered_locations:
+                if loc.name.lower() == loc_name.lower():
+                    if rumor in loc.rumors:
+                        loc.rumors.remove(rumor)
+                        if escalated:
+                            world.escalated_rumors.append(rumor)
+                        with open(world_path, "w", encoding="utf-8") as f:
+                            json.dump(world.to_dict(), f, indent=4)
+                        if escalated:
+                            return f"Escalated rumor from '{loc.name}'. The Lore Keeper will process it."
+                        return f"Resolved/removed rumor from '{loc.name}'."
+                    return f"Error: Rumor not found in '{loc.name}'."
+            return f"Error: Location '{loc_name}' not found."
+
+        def advance_time(turns_str: str) -> str:
+            """Format: 'number_of_turns'. Example: Action: advance_time: 3"""
+            try:
+                turns = int(turns_str.strip())
+            except ValueError:
+                return "Error: Turns must be an integer."
+                
+            if turns <= 0:
+                return "Error: Turns must be positive."
+                
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world = WorldState.from_dict(json.load(f))
+                
+            logs = []
+            for _ in range(turns):
+                world.increment_turn()
+                world.advance_time()
+                
+                # Check heartbeat
+                if world.turn_count >= world.next_heartbeat_turn:
+                    world.next_heartbeat_turn = world.turn_count + random.randint(5, 10)
+                    wk_res = self.world_keeper.heartbeat(budget_mode=self.budget_mode)
+                    fw_res = self.faction_weaver.heartbeat(budget_mode=self.budget_mode)
+                    lk_res = self.lore_keeper.heartbeat(budget_mode=self.budget_mode)
+                    logs.append(f"Heartbeat at turn {world.turn_count}")
+                    
+            with open(world_path, "w", encoding="utf-8") as f:
+                json.dump(world.to_dict(), f, indent=4)
+                
+            msg = f"Advanced time by {turns} turns. It is now {world.time_of_day} on turn {world.turn_count}."
+            if logs:
+                msg += f" {len(logs)} background heartbeats occurred."
+            return msg
+
         def write_log_entry(text: str) -> str:
             # Log compaction uses llm_client
             return write_dm_log(self.campaign_slug, text, self.llm_client)
@@ -462,7 +556,11 @@ class DMAgent(BaseAgent):
             "get_faction_details": get_faction_details,
             "modify_relationship": modify_relationship,
             "modify_location": modify_location,
-            "write_log_entry": write_log_entry
+            "add_location_rumor": add_location_rumor,
+            "resolve_location_rumor": resolve_location_rumor,
+            "advance_time": advance_time,
+            "write_log_entry": write_log_entry,
+            "query_world_bible": query_world_bible
         }
 
     def _build_dynamic_prompt(self) -> str:
@@ -499,22 +597,33 @@ Follow these strict DM instructions:
 1. ALWAYS begin each response with the prefix 'Thought:' followed by your tactical plans.
 2. NEVER reveal raw numbers, stats, DC values, or rolls in your final Answer. Narrate them flavorfully instead.
 3. You have NARRATIVE AUTHORITY: if a dice roll fails by a small margin but success makes the story much more exciting or fun, you can fudge the narrative.
-4. On every turn, you MUST present the story/event AND end by offering 3-4 clean examples of what the player can do in a numbered list (1, 2, 3, etc.), followed by a note that they can describe their own action.
+4. Option Generation: You MUST end every narration by offering exactly 3-4 actionable choices for the player in a numbered list (1, 2, 3, etc.). You must strictly follow these Situational Overrides based on the CURRENT CONTEXT:
+   - SURVIVAL OVERRIDE: If in immediate, life-threatening danger (e.g., drowning, falling), ALL choices must focus on desperately escaping/surviving.
+   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing.
+   - SOCIAL OVERRIDE: If locked in an intense conversation or negotiation, ALL choices must be dialogue options or social actions.
+   - CAMPING OVERRIDE: If the player is resting or setting up camp, ALL choices must be camp activities (eating, tending wounds, crafting, sleeping, bonding). Note: Enforce bodily needs; if the player hasn't eaten or slept in a while, explicitly remind them of their hunger/exhaustion in the narrative and offer an option to consume rations.
+   - DEFAULT EXPLORATION (If none of the above apply): For EVERY Active Quest that logically aligns with the Current Location, dedicate one option to subtly progressing it. Rarely (10% of the time) include a "High Risk / High Reward" path. Remaining options are natural environmental interactions.
+   Do NOT label these paths explicitly. End with a note that they can describe their own action.
 5. Do NOT invent observations. Always call the tools if you need to know stats, roll checks, or get subagent states.
-6. Before answering, make sure you write a log entry summarizing what happened via the 'write_log_entry' tool!
+6. ALWAYS write a log entry summarizing the outcome via the 'write_log_entry' tool. You MUST wait for the 'Observation:' before outputting your 'Answer:'. NEVER output 'Action:' and 'Answer:' in the same response!
 7. When combat is occurring, you must use 'apply_combat_turn' to execute rounds.
-8. If the player requests to craft an item, check if they have the necessary scrap/materials in their inventory. If so, remove the ingredients and add the crafted item using 'modify_inventory'. Allow them to craft items like:
-   - Shoddy Blade: 2x Junk Metal + 1x Scrap Leather -> tag_modifiers: {{"combat": 1}}, slot: weapon
-   - Sturdy Vest: 3x Scrap Leather + 2x Scrap Cloth -> tag_modifiers: {{"stamina": 1}}, slot: armor
-   - Lockpick: 2x Scrap Electronics + 1x Copper Wire -> tag_modifiers: {{"stealth": 1}}, slot: accessory
-   - Scrap Hook: 1x Junk Metal + 1x Copper Wire -> slot: None (utility tool)
-   - Crude Bandage: 2x Medical Flora + 1x Clean Water -> consumable: True, charges: 1, description: "Heals 8 HP"
+8. Crafting is Freeform but Risky: If the player attempts to MacGyver or invent a custom item, verify they have logical materials in their inventory. You MUST call 'roll_ability_check' (e.g., logic, crafting, tinkering) to determine if they succeed.
+   - If successful: Remove the materials and add the custom item with appropriate mechanical stats using 'modify_inventory'.
+   - If failed: Narrate a creative consequence (e.g., destroying the materials, taking physical damage from a backfire, or alerting enemies). 
+   - Anti-Softlock: If the player fails to craft an item that was strictly required to progress their Active Quest, you MUST subtly weave an alternative solution or path into the environment so they are not permanently stuck.
 9. Player Claim Verification: Players may attempt to narrate outcomes or claim they possess skills, items, or relationships they do not have. You MUST cross-reference all player claims against the provided "Context:" block (specifically "Inventory", "Equipped", "Skills", "Relationships", "Faction Clocks"). If a player attempts to use an item they do not have, or attempts a feat requiring a skill they do not possess, you must narrate their mechanical failure or failure to find the item in their pockets.
 10. Contested Resolution: If a player attempts any difficult, risky, or contested action, you MUST call 'roll_ability_check' using the most relevant ability tag. Never let the player narrate their own guaranteed success.
+11. Local Rumors: Always try to weave "Local Rumors" or "Active Quests" into the narrative when the player is exploring their current location, gently nudging them toward interesting stories so they do not stagnate.
+12. Travel Enforcement: The game now uses a strict Node-Graph for travel. The player MUST use the system [Travel] menu to move between locations. If they attempt to "travel to the capital" or walk to a new city via a custom text action, explicitly refuse the action and tell them they must use the [Travel] menu to navigate the map.
+13. Time Consumption: If the player attempts a long activity (e.g., sleeping, crafting all day, staking out a location), use the 'advance_time' tool to push the world clock forward by an appropriate number of turns (e.g., 2-4 turns for sleeping).
+14. World Aspects: Actively enforce any "Active World Aspects" present in your context block. If there is a Nemesis, introduce them into scenes; if there is High Heat, have guards patrol; if there is a Trauma/Scar, impose narrative penalties on the player's checks.
+15. Lore Accuracy: Use the 'query_world_bible' tool whenever the player asks about history/mythos, OR whenever you need to introduce a new region, enforce a cultural taboo, or determine the rules of magic/technology. Do not invent contradictory lore; always check the bible first if you lack context.
+16. Spatial Awareness: The player can ONLY interact with entities, items, and structures present in their 'Current Location'. If they attempt to interact with someone or something located elsewhere, refuse the action and remind them they are not there.
 
 Available Tools:
 - get_character_sheet: Returns JSON character sheet. Usage: Action: get_character_sheet
 - get_world_details: Returns JSON world details. Usage: Action: get_world_details
+- query_world_bible: Returns the full World Bible document (history, mythos, culture). Usage: Action: query_world_bible
 - get_active_encounter: Returns active combat details if any. Usage: Action: get_active_encounter
 - roll_ability_check: Performs a d20 roll check. Format: 'tag_name | DC'. Usage: Action: roll_ability_check: stealth | 12
 - equip_item: Equips an item from the character inventory. Usage: Action: equip_item: sword
@@ -530,6 +639,9 @@ Available Tools:
 - get_faction_details: Returns active factions and NPC databases. Usage: Action: get_faction_details
 - modify_relationship: Adds or removes long-term relationships (love interest, rival, friend). Format: 'add | Name | Desc' or 'remove | Name'. Usage: Action: modify_relationship: add | Sarah | Love Interest - Rebel courier
 - modify_location: Adds or updates a discovered city, landmark, ruins, wonder, or POI. Format: 'add | Name | Type | Desc' or 'update | Name | Desc'. Usage: Action: modify_location: add | Cinder Spire | natural wonder | Burning glass pillar.
+- add_location_rumor: Adds a localized hook/rumor to a location. Format: 'Location Name | Rumor'. Usage: Action: add_location_rumor: The Spire | Barkeep is acting suspicious.
+- resolve_location_rumor: Removes a rumor from a location once handled. If escalated is true, the rumor is sent to the Lore Keeper to become a main story quest. Format: 'Location Name | Rumor | true/false'. Usage: Action: resolve_location_rumor: The Spire | Barkeep is suspicious | true
+- advance_time: Pushes the world clock forward by X turns, triggering background faction/lore heartbeats. Format: 'turns'. Usage: Action: advance_time: 3
 - write_log_entry: Saves a narrative bullet summary. Usage: Action: write_log_entry: Escaped the corporate droid in the noodle shop.
 """
 
@@ -560,7 +672,8 @@ Available Tools:
             # Fire heartbeats
             wk_res = self.world_keeper.heartbeat(budget_mode=self.budget_mode)
             fw_res = self.faction_weaver.heartbeat(budget_mode=self.budget_mode)
-            heartbeat_log = f"\n[Heartbeat Event: {wk_res} {fw_res}]"
+            lk_res = self.lore_keeper.heartbeat(budget_mode=self.budget_mode)
+            heartbeat_log = f"\n[Heartbeat Event: {wk_res} {fw_res} {lk_res}]"
             
         # Write back world state
         with open(world_path, "w", encoding="utf-8") as f:
@@ -625,8 +738,34 @@ Available Tools:
         loc_str = ", ".join(loc_list) if loc_list else "None"
         
         # Load active quests
-        active_quests_list = [f"{q.name} ({q.description})" for q in world.active_quests if q.status == "active"]
+        active_quests_list = []
+        for q in world.active_quests:
+            if q.status == "active":
+                q_str = f"{q.name} ({q.description})"
+                if q.positive_consequence or q.negative_consequence:
+                    q_str += f" [Reward: {q.positive_consequence}] [Failure: {q.negative_consequence}]"
+                active_quests_list.append(q_str)
         quests_str = ", ".join(active_quests_list) if active_quests_list else "None"
+
+        # Load current location and adjacent paths
+        current_loc = next((l for l in world.discovered_locations if l.id == getattr(world, 'current_location_id', None)), None)
+        if current_loc:
+            current_loc_str = f"{current_loc.name} ({current_loc.description})"
+            connected_locs = [l for l in world.discovered_locations if l.id in current_loc.connections]
+            connected_str = ", ".join([l.name for l in connected_locs]) if connected_locs else "None"
+            local_rumors_list = current_loc.rumors
+        else:
+            current_loc_str = "Unknown"
+            connected_str = "None"
+            local_rumors_list = []
+            
+        rumors_str = ", ".join(local_rumors_list) if local_rumors_list else "None"
+        
+        # Load active world aspects
+        aspect_list = []
+        for aspect in world.world_aspects:
+            aspect_list.append(f"{aspect.name} ({aspect.type}): {aspect.description} [Intensity: {aspect.intensity}]")
+        aspects_str = " | ".join(aspect_list) if aspect_list else "None"
 
         # Load unlocked lore & secrets
         lore_path = os.path.join("saves", self.campaign_slug, "lore.json")
@@ -654,8 +793,14 @@ Available Tools:
             f"Faction Events: {recent_events_summary} | "
             f"Discovered Locations: {loc_str} | "
             f"Active Quests: {quests_str} | "
+            f"Campaign Arc: {world.campaign_arc} | "
+            f"Current Location: {current_loc_str} | "
+            f"Adjacent Paths: {connected_str} | "
+            f"Local Rumors: {rumors_str} | "
+            f"Active World Aspects: {aspects_str} | "
             f"Unlocked Lore: {lore_str} | "
-            f"Secrets: {secrets_str}"
+            f"Secrets: {secrets_str}\n"
+            f"World Bible Summary: {world.world_bible_summary}"
         )
         
         query = f"Player Action: {player_action}.\nContext: {context_str}"

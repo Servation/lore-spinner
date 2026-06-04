@@ -7,11 +7,19 @@ This project is a text-based narrative RPG powered by a multi-agent AI system. A
 ### Dungeon Master (DM) Agent
 The player-facing orchestrator agent that narrates the story, presents choices, resolves player actions, and weaves subagent outputs into a coherent narrative. The DM has **narrative authority** — it can override strict mechanical outcomes when doing so improves the story.
 
-### Subagent
-An autonomous AI agent that controls a specific domain of the game world. Subagents maintain their own state, are triggered by relevance or periodic heartbeats, and report outputs to the DM. The DM may not be fully aware of all subagent activity until their outputs surface.
+### Subagents
+Smaller, asynchronous LLM instances that handle background simulation. They do not talk to the player.
+- **Lore Keeper**: Watches the DM logs and player actions to update the Campaign Arc, spawn Inciting Incidents, track Narrative Threads, and organically introduce **World Aspects** (like Nemeses or Doom Clocks).
+- **Faction Weaver**: Manages the hidden agendas, clocks, and reputations of Factions.
+- **World Keeper**: Handles environmental states, weather, and physical world decay.
 
-### World Keeper
-The subagent responsible for the physical world — weather, terrain, time of day, ambient events, and environmental modifiers. Runs on heartbeat cycles to evolve the world independently.
+### World Aspects
+Dynamic, persistent narrative constraints or entities attached to the World State. Depending on the story and player actions, the Lore Keeper can introduce these to make actions matter. Examples include:
+- **Nemesis**: A specific rival who remembers the player and actively hunts them.
+- **Doom Clock**: A world-ending countdown (e.g., "The Blight Spreads").
+- **Heat / Notoriety**: A level of criminal status causing guards/bounties to appear.
+- **Trauma / Scars**: Permanent physical or mental conditions affecting the character.
+These are managed by the Lore Keeper and continuously fed to the DM so they impact the active narrative.
 
 ### Faction Weaver
 The subagent responsible for NPC factions, political dynamics, reputation tracking, and faction-driven events. Factions scheme independently on heartbeat cycles.
@@ -88,5 +96,23 @@ The mechanical action by which the DM agent permanently deducts specified raw ma
 ### Faction Projects
 Long-term, background goals pursued autonomously by factions (e.g., "Building a checkpoint", "Researching a cure"). Tracked by the Faction Weaver via a mechanical countdown (turns/heartbeats). When a project completes, it fires a narrative event and can permanently alter the World State by introducing new Environmental Modifiers.
 
+## Technical Details
+- Built in Python.
+- Uses LLM APIs (Gemini, OpenAI, Anthropic).
+- Data is stored in local `.json` files and `.md` files in the `saves/<campaign_slug>/` directory.
+- Relies on **questionary** for a rich, interactive Terminal User Interface (TUI) allowing for WASD/Arrow key navigation.
+
+### Inciting Incident
+A special type of Narrative Thread granted at the absolute start of the game. It possesses explicit positive and negative consequences to give the player immediate stakes and direction. This incident kicks off the primary Campaign Arc.
+
 ### Narrative Threads
 Ongoing tasks, hooks, or personal missions actively tracked by the World State (internally known as 'quests'). The DM is fed these threads continuously to organically weave them into the evolving story, rather than treating them as a rigid checklist.
+
+### Campaign Arc
+An overarching, high-stakes storyline composed of multiple Narrative Threads. When the player engages with localized Rumors and the DM escalates them, the Lore Keeper subagent dynamically converts those escalated rumors into new Narrative Threads tied directly to the central Campaign Arc.
+
+### Local Rumors
+Small, location-specific hooks or points of interest attached to specific Discovered Locations. These are NOT main quests. The DM uses these to flavor a location. If the player interacts with a rumor, the DM resolves it. If the DM marks it as "escalated", it gets passed to the Lore Keeper to be upgraded into a formal Narrative Thread.
+
+### World Bible
+A comprehensive, static lore document generated at the start of a campaign. It contains the overarching history, pantheons, mythos, and primary cultures of the world. Because it is too large to inject into memory on every turn, a short summary is kept in the World State, while the DM Agent can actively query the full document when players ask deep lore questions.

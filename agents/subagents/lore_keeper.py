@@ -11,30 +11,34 @@ class LoreKeeper(BaseAgent):
         
         sys_instruction = """You are the Lore Keeper. You manage quest progressions, hidden secrets, and unlocked lore/codex entries.
 Your job is to track narrative milestones, unlock historical or technological lore, and manage quests.
-You do NOT interact with the player directly. You write to the lore and world state databases via tools.
-
-You run in a ReAct loop. When called:
-1. Examine the player's action, location, and quest list.
-2. Determine if a quest should advance or finish.
-3. Determine if any secret lore should be unlocked.
-4. Output your final Answer summarizing what quests/lore changed.
+You do NOT interact with the player directly. Your task is to maintain the overarching narrative logic of the world. You run in a background ReAct loop.
+You read the DM log and the current 'Campaign Arc' and 'Active Quests'. 
+1. If the player completes major tasks, update the quests.
+2. If they discover something new, unlock lore entries.
+3. If the player acts recklessly, angers NPCs, or suffers massive defeat, you MUST spawn new 'World Aspects' (like 'Nemesis', 'Doom Clock', 'Heat', or 'Trauma') to impose lasting consequences on them.
+4. Output your final Answer summarizing what quests/lore/aspects changed.
 
 Your tools are:
-- add_quest: Spawns a new quest. Format: 'quest_id | quest_name | description'. Usage: Action: add_quest: main_shard | Find the Data Shard | Locate the encrypted high-density shard.
+- add_quest: Spawns a new quest. Format: 'id | name | desc | [pos_conseq] | [neg_conseq]'. Usage: Action: add_quest: main_shard | Find the Data Shard | Locate the encrypted shard. | Access to archives | Corporate wipe
 - update_quest: Updates a quest status. Format: 'quest_id | status'. Status options: 'completed', 'failed'. Usage: Action: update_quest: main_shard | completed
 - unlock_lore: Unlocks a codex/lore entry. Format: 'title | content'. Usage: Action: unlock_lore: The Great Freeze | A historical recount of the disaster.
 - plant_secret: Registers a secret clue. Format: 'secret_description'. Usage: Action: plant_secret: Jax is planning a double cross.
+- update_campaign_arc: Replaces the core campaign arc. Format: 'new arc'. Usage: Action: update_campaign_arc: The player must stop the AI before it ascends.
+- add_world_aspect: Adds a new World Aspect constraint (Nemesis, Doom Clock, Heat, Trauma). Format: 'name | type | desc | [intensity]'. Usage: Action: add_world_aspect: Kael | Nemesis | A rival bounty hunter tracking you. | 3
+- remove_world_aspect: Removes an aspect. Format: 'name'. Usage: Action: remove_world_aspect: Kael
 """
         super().__init__(llm_client, self.tools, sys_instruction)
 
     def _get_tools(self) -> Dict[str, Callable[[str], str]]:
         def add_quest(args: str) -> str:
-            if args.count("|") < 2:
-                return "Error: Format must be 'quest_id | quest_name | description'"
-            parts = args.split("|", 2)
+            parts = args.split("|")
+            if len(parts) < 3:
+                return "Error: Format must be 'quest_id | quest_name | description | [pos_conseq] | [neg_conseq]'"
             qid = parts[0].strip()
             name = parts[1].strip()
             desc = parts[2].strip()
+            pos = parts[3].strip() if len(parts) > 3 else ""
+            neg = parts[4].strip() if len(parts) > 4 else ""
             
             world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
             if not os.path.exists(world_path):
@@ -42,7 +46,7 @@ Your tools are:
             with open(world_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             world = WorldState.from_dict(data)
-            world.add_quest(qid, name, desc)
+            world.add_quest(qid, name, desc, pos_conseq=pos, neg_conseq=neg)
             with open(world_path, "w", encoding="utf-8") as f:
                 json.dump(world.to_dict(), f, indent=4)
             return f"Quest '{name}' (ID: {qid}) added successfully."
@@ -99,14 +103,110 @@ Your tools are:
                 json.dump(data, f, indent=4)
             return f"Secret clue planted: {secret_desc.strip()}."
 
+        def update_campaign_arc(new_arc: str) -> str:
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            if not os.path.exists(world_path):
+                return "Error: World state not found."
+            with open(world_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            world = WorldState.from_dict(data)
+            world.campaign_arc = new_arc
+            with open(world_path, "w", encoding="utf-8") as f:
+                json.dump(world.to_dict(), f, indent=4)
+            return "Campaign arc updated."
+
+        def add_world_aspect(args: str) -> str:
+            parts = args.split("|")
+            if len(parts) < 3:
+                return "Error: Format must be 'name | type | description | [intensity]'"
+            name = parts[0].strip()
+            a_type = parts[1].strip()
+            desc = parts[2].strip()
+            intensity = 1
+            if len(parts) > 3:
+                try:
+                    intensity = int(parts[3].strip())
+                except:
+                    pass
+                    
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            world = WorldState.from_dict(data)
+            world.add_aspect(name, a_type, desc, intensity)
+            with open(world_path, "w", encoding="utf-8") as f:
+                json.dump(world.to_dict(), f, indent=4)
+            return f"World Aspect '{name}' ({a_type}) added/updated."
+
+        def remove_world_aspect(name: str) -> str:
+            name = name.strip()
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            world = WorldState.from_dict(data)
+            if world.remove_aspect(name):
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                return f"World Aspect '{name}' removed."
+            return f"Error: Aspect '{name}' not found."
+
         return {
             "add_quest": add_quest,
             "update_quest": update_quest,
             "unlock_lore": unlock_lore,
-            "plant_secret": plant_secret
+            "plant_secret": plant_secret,
+            "update_campaign_arc": update_campaign_arc,
+            "add_world_aspect": add_world_aspect,
+            "remove_world_aspect": remove_world_aspect
         }
 
     def check_lore(self, action: str, location: str) -> str:
         """Called by DM to check if any lore is unlocked by this action/location."""
         query = f"Location: {location}. Action: {action}. Determine if any secrets are unlocked or quests advanced."
         return self.run(query, max_turns=3, verbose=False, agent_name="LoreKeeper")
+
+    def heartbeat(self, budget_mode: bool = False) -> str:
+        if budget_mode:
+            return "LoreKeeper heartbeat skipped (Budget Mode)."
+            
+        world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+        if not os.path.exists(world_path):
+            return ""
+            
+        with open(world_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        world = WorldState.from_dict(data)
+        
+        if not world.escalated_rumors:
+            return "No escalated rumors."
+            
+        rumors_str = ", ".join(world.escalated_rumors)
+        arc_str = world.campaign_arc if world.campaign_arc else "None (Create one now based on these rumors)"
+        
+        query = f"HEARTBEAT: The following rumors were escalated by the DM: [{rumors_str}]. The current Campaign Arc is: [{arc_str}]. Weave these escalated rumors into a new Narrative Thread (Quest) and add it. If there is no Campaign Arc, use 'update_campaign_arc' to create the overarching Campaign Arc premise now."
+        
+        res = self.run(query, max_turns=4, verbose=False, agent_name="LoreKeeper")
+        
+        # Reload and clear the queue after processing
+        with open(world_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        world = WorldState.from_dict(data)
+        world.escalated_rumors.clear()
+        with open(world_path, "w", encoding="utf-8") as f:
+            json.dump(world.to_dict(), f, indent=4)
+            
+        return "Processed escalated rumors into Narrative Threads."
+
+    def generate_inciting_incident(self) -> None:
+        """Generates the initial Campaign Arc and starting Narrative Thread with strict consequences."""
+        world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+        if not os.path.exists(world_path):
+            return
+            
+        with open(world_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        world = WorldState.from_dict(data)
+        
+        query = f"INITIALIZATION: The game is starting in the genre '{world.setting_genre}'. Setting description: '{world.setting_description}'. Your task is to establish the overarching Campaign Arc using 'update_campaign_arc', and then create the 'Inciting Incident' (the starting quest) using the 'add_quest' tool. You MUST provide explicit positive and negative consequences for this quest to set immediate stakes."
+        
+        self.run(query, max_turns=4, verbose=False, agent_name="LoreKeeper")

@@ -15,10 +15,15 @@ An immersive, text-based narrative role-playing game powered by a multi-agent AI
   - **Lore Keeper**: Manages world history, quest hooks, and secrets.
 - **Organic Narrative Memory**: The DM is continuously fed active **Narrative Threads**, unlocked lore details, and secret clues on turn startup, allowing them to organically weave ongoing tasks into the evolving story rather than treating them like rigid checklists.
 - **Autonomous Faction Projects**: Factions independently pursue long-term, background goals (e.g., "Researching a cure"). The Faction Weaver tracks these mechanical countdowns during heartbeats. Upon completion, they fire narrative events and can permanently alter the World State.
-- **Immersive Inventory & Crafting**:
-  - **Consumable Items**: Items with finite charges that provide direct benefits and degrade naturally through narrative use.
-  - **Salvaging**: Break down complex or unwanted items into fundamental raw materials (e.g., Scrap Metal, Copper Wire) to manage inventory space.
-  - **Crafting**: The DM permanently deducts specified raw materials to dynamically assemble new items, provided the player's request makes logical sense within the fiction.
+- **Intelligent Option Generation**: The DM intelligently adapts the 4 interactive choices based on context:
+  - **Survival Override**: Immediate life-threatening danger forces all choices into desperate escape/survival attempts.
+  - **Social Override**: Intense conversations force choices into dialogue options.
+  - **Camping Override**: Resting shifts choices to camp activities while enforcing bodily needs (hunger/exhaustion).
+  - **Exploration & Progression**: Subtly weaves in progression for *every* local quest, ignores distant quests, and rarely tempts the player with a character-specific High Risk/High Reward option.
+- **Risky Freeform Crafting**: Players can invent custom items using logical scrap (MacGyver style). The DM secretly rolls ability checks and enforces creative consequences (damage, broken materials) on failure, with an anti-softlock mechanism for critical quest items.
+- **Node-Graph Travel Enforcement**: Spatial positioning is strictly enforced. Players must use the dedicated system menu to travel between locations; the DM will refuse attempts to teleport via text actions.
+- **Crash-Resilient Lazy Generation**: Instant saving on character creation. The heavy generation (World Bible, Map) is deferred to the first game loop to prevent API timeout wipeouts.
+- **Contextual Visual Overhaul**: Terminal UI themes change dynamically based on the player's current location, with cleanly separated narrative text and grouped system menus.
 - **Living World Heartbeats**: Subagents periodically trigger (every 5-10 turns) in the background, updating the world environment and faction politics in surprising ways independently of player actions.
 - **Budget Mode**: Toggleable mode that reduces LLM calls by replacing subagent heartbeats with rule-based heuristics to minimize API token costs.
 - **Saves & DM Logs**: Support for unlimited named save slots, fuzzy save search, and compacted markdown DM narrative logs.
