@@ -127,6 +127,7 @@ class WorldState:
     # These are set/cleared mechanically by DM tools so overrides cannot be forgotten
     survival_situation: str = ""   # Non-empty = Survival Override active; describes the threat
     social_encounter: str = ""     # Non-empty = Social Override active; describes who and the stakes
+    stealth_mission: str = ""      # Non-empty = Stealth Override active; describes the infiltration target
     is_camping: bool = False        # True = Camping Override active
 
     TIMES_OF_DAY = ["Morning", "Noon", "Afternoon", "Dusk", "Night", "Midnight"]
@@ -222,6 +223,7 @@ class WorldState:
             "fatigue": self.fatigue,
             "survival_situation": self.survival_situation,
             "social_encounter": self.social_encounter,
+            "stealth_mission": self.stealth_mission,
             "is_camping": self.is_camping
         }
 
@@ -264,5 +266,6 @@ class WorldState:
             fatigue=data.get("fatigue", 0),
             survival_situation=data.get("survival_situation", ""),
             social_encounter=data.get("social_encounter", ""),
+            stealth_mission=data.get("stealth_mission", ""),
             is_camping=data.get("is_camping", False)
         )

@@ -96,6 +96,14 @@ The mechanical action by which the DM agent permanently deducts specified raw ma
 ### Faction Projects
 Long-term, background goals pursued autonomously by factions (e.g., "Building a checkpoint", "Researching a cure"). Tracked by the Faction Weaver via a mechanical countdown (turns/heartbeats). When a project completes, it fires a narrative event and can permanently alter the World State by introducing new Environmental Modifiers.
 
+### Situational Overrides
+Mechanical locks applied to the DM's ReAct loop to prevent the LLM from "forgetting" the current scene context and offering immersion-breaking casual exploration options. The DM uses the `set_override_state` tool to lock and unlock these modes:
+- **Combat**: Triggered automatically when `encounters.json` has an active enemy. Locks all choices to tactical actions.
+- **Survival**: Used when in immediate mortal danger (e.g. falling, trapped in a fire). Locks choices to frantic escape.
+- **Stealth**: Used when sneaking through hostile territory. Locks choices to quiet movement, cover, and silent takedowns.
+- **Social**: Used during intense negotiations or interrogations. Locks choices to dialogue and social maneuvers.
+- **Camping**: Used when resting. Locks choices to camp activities (eating, sleeping) and enforces Hunger/Fatigue updates.
+
 ## Technical Details
 - Built in Python.
 - Uses LLM APIs (Gemini, OpenAI, Anthropic).
