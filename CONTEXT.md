@@ -102,6 +102,7 @@ Mechanical locks applied to the DM's ReAct loop to prevent the LLM from "forgett
 - **Survival**: Used when in immediate mortal danger (e.g. falling, trapped in a fire). Locks choices to frantic escape.
 - **Stealth**: Used when sneaking through hostile territory. Locks choices to quiet movement, cover, and silent takedowns.
 - **Social**: Used during intense negotiations or interrogations. Locks choices to dialogue and social maneuvers.
+- **Investigation**: Used when solving a complex puzzle or examining a scene. Locks choices to intellectual analysis and puzzle-solving.
 - **Camping**: Used when resting. Locks choices to camp activities (eating, sleeping) and enforces Hunger/Fatigue updates.
 
 ## Technical Details
