@@ -48,11 +48,9 @@ Your tools are:
                 return "Error: World state not found."
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            # Weather is stored in setting_description or parsed context.
-            # Let's add it to the setting_description or state metadata.
-            # We can append it to the current time of day or add it as an environmental modifier.
             world = WorldState.from_dict(data)
-            world.add_environmental_modifier(weather.strip(), 0) # 0 modifier just for weather description
+            # Store weather in its own dedicated field, NOT as an environmental modifier
+            world.weather = weather.strip()
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(world.to_dict(), f, indent=4)
             return f"Weather set to {weather}."
@@ -90,11 +88,37 @@ Your tools are:
                 json.dump(world.to_dict(), f, indent=4)
             return f"Removed environmental modifier '{name}'."
 
+        def set_bodily_needs(args: str) -> str:
+            """Format: 'hunger | fatigue'. Values: 0=Fine, 1=Mildly affected, 2=Severely affected.
+            Usage: Action: set_bodily_needs: 1 | 0"""
+            parts = args.split("|")
+            if len(parts) < 2:
+                return "Error: Format must be 'hunger_level | fatigue_level' (0-2 each)."
+            try:
+                hunger = max(0, min(2, int(parts[0].strip())))
+                fatigue = max(0, min(2, int(parts[1].strip())))
+            except ValueError:
+                return "Error: Values must be integers 0-2."
+            path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            if not os.path.exists(path):
+                return "Error: World state not found."
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            world = WorldState.from_dict(data)
+            world.hunger = hunger
+            world.fatigue = fatigue
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(world.to_dict(), f, indent=4)
+            hunger_labels = ["Full", "Hungry", "Starving"]
+            fatigue_labels = ["Rested", "Tired", "Exhausted"]
+            return f"Bodily needs updated: {hunger_labels[hunger]}, {fatigue_labels[fatigue]}."
+
         return {
             "advance_time": advance_time,
             "set_weather": set_weather,
             "add_env_modifier": add_env_modifier,
-            "remove_env_modifier": remove_env_modifier
+            "remove_env_modifier": remove_env_modifier,
+            "set_bodily_needs": set_bodily_needs
         }
 
     def heartbeat(self, budget_mode: bool = False) -> str:

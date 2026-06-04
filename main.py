@@ -933,9 +933,29 @@ def run_new_game(llm_client):
         print_styled("\nNew game cancelled.", COLOR_SYSTEM)
         return
         
-    # Initialize game objects
+    # Extract genre robustly: try parentheses first, then fall back to keyword detection
+    def extract_genre(pitch: str) -> str:
+        if "(" in pitch and ")" in pitch:
+            raw = pitch.split("(")[1].split(")")[0].strip()
+        else:
+            raw = pitch
+        raw_lower = raw.lower()
+        if "cyberpunk" in raw_lower or "cyber" in raw_lower:
+            return "cyberpunk"
+        if "post-apoc" in raw_lower or "apocalyptic" in raw_lower or "wasteland" in raw_lower:
+            return "post-apocalyptic"
+        if "fantasy" in raw_lower or "magic" in raw_lower or "sword" in raw_lower:
+            return "fantasy"
+        if "sci-fi" in raw_lower or "space" in raw_lower or "galactic" in raw_lower:
+            return "sci-fi"
+        if "horror" in raw_lower or "gothic" in raw_lower:
+            return "horror"
+        if "western" in raw_lower or "frontier" in raw_lower:
+            return "western"
+        return raw  # pass through as-is for custom genres
+
     world = WorldState(
-        setting_genre=selected_pitch.split("(")[1].split(")")[0] if "(" in selected_pitch else "Fantasy",
+        setting_genre=extract_genre(selected_pitch),
         setting_description=selected_pitch,
         dm_traits=dm_traits
     )

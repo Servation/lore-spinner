@@ -58,18 +58,30 @@ def generate_enemy(name: str, threat_level: int, genre: str) -> Enemy:
     enemy_abilities = AbilitySet()
     
     genre = genre.lower()
-    if genre == "fantasy":
+    if "fantasy" in genre:
         weapon_damage = "1d6" if threat_level <= 2 else "1d8+1" if threat_level <= 4 else "2d6+2"
         enemy_abilities.add_tag("combat", threat_level)
         enemy_abilities.add_tag("athletics", threat_level - 1 if threat_level > 1 else 0)
-    elif genre == "cyberpunk":
+    elif "cyberpunk" in genre or "cyber" in genre:
         weapon_damage = "1d6" if threat_level <= 2 else "1d8" if threat_level <= 4 else "2d8"
         enemy_abilities.add_tag("marksmanship", threat_level)
         enemy_abilities.add_tag("evasion", threat_level - 1 if threat_level > 1 else 0)
-    elif genre == "post-apocalyptic":
+    elif "post-apoc" in genre or "apocalyptic" in genre or "wasteland" in genre:
         weapon_damage = "1d4+1" if threat_level <= 2 else "1d8" if threat_level <= 4 else "1d10+2"
         enemy_abilities.add_tag("melee_weapons", threat_level)
         enemy_abilities.add_tag("firearms", threat_level)
+    elif "sci-fi" in genre or "space" in genre:
+        weapon_damage = "1d6" if threat_level <= 2 else "1d8" if threat_level <= 4 else "2d6"
+        enemy_abilities.add_tag("marksmanship", threat_level)
+        enemy_abilities.add_tag("tech", threat_level - 1 if threat_level > 1 else 0)
+    elif "horror" in genre or "gothic" in genre:
+        weapon_damage = "1d6" if threat_level <= 2 else "1d8+1" if threat_level <= 4 else "2d6+2"
+        enemy_abilities.add_tag("terror", threat_level)
+        enemy_abilities.add_tag("resilience", threat_level)
+    elif "western" in genre or "frontier" in genre:
+        weapon_damage = "1d6" if threat_level <= 2 else "1d8" if threat_level <= 4 else "1d10+1"
+        enemy_abilities.add_tag("firearms", threat_level)
+        enemy_abilities.add_tag("grit", threat_level - 1 if threat_level > 1 else 0)
     else:
         weapon_damage = "1d6"
         enemy_abilities.add_tag("combat", threat_level)

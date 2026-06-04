@@ -88,7 +88,7 @@ A persistent geographical registry of major cities, natural wonders, dungeons, o
 Items in the player's inventory that possess a finite number of charges (e.g., Healing Salves, Energy Cells). Using these items provides a direct mechanical benefit or status change, decrements the charge count, and automatically destroys the item when depleted.
 
 ### Salvaging
-The mechanical action of breaking down complex or unwanted items into fundamental raw materials (e.g., Scrap Metal, Copper Wire). Salvaging is used to manage inventory space and gather components for future use.
+The mechanical action of breaking down complex or unwanted items into fundamental raw materials (e.g., Junk Metal, Scrap Electronics, Scrap Leather, Scrap Cloth, Copper Wire). Salvaging is used to manage inventory space and gather components for future use.
 
 ### Crafting
 The mechanical action by which the DM agent permanently deducts specified raw materials from the player's inventory to generate a newly assembled item. Crafting requests must make logical sense within the fiction and setting.

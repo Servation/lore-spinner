@@ -120,6 +120,9 @@ class WorldState:
     world_aspects: List[WorldAspect] = field(default_factory=list)
     world_bible_summary: str = ""
     current_location_id: str = ""
+    weather: str = ""  # Descriptive weather string, e.g. "Heavy Rain"
+    hunger: int = 0   # 0=Full, 1=Hungry, 2=Starving
+    fatigue: int = 0  # 0=Rested, 1=Tired, 2=Exhausted
 
     TIMES_OF_DAY = ["Morning", "Noon", "Afternoon", "Dusk", "Night", "Midnight"]
 
@@ -208,7 +211,10 @@ class WorldState:
             "escalated_rumors": self.escalated_rumors,
             "world_aspects": [a.to_dict() for a in self.world_aspects],
             "world_bible_summary": self.world_bible_summary,
-            "current_location_id": self.current_location_id
+            "current_location_id": self.current_location_id,
+            "weather": self.weather,
+            "hunger": self.hunger,
+            "fatigue": self.fatigue
         }
 
     @classmethod
@@ -244,5 +250,8 @@ class WorldState:
             escalated_rumors=data.get("escalated_rumors", []),
             world_aspects=[WorldAspect.from_dict(ad) for ad in data.get("world_aspects", [])],
             world_bible_summary=data.get("world_bible_summary", ""),
-            current_location_id=data.get("current_location_id", "")
+            current_location_id=data.get("current_location_id", ""),
+            weather=data.get("weather", ""),
+            hunger=data.get("hunger", 0),
+            fatigue=data.get("fatigue", 0)
         )

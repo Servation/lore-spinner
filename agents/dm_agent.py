@@ -660,7 +660,7 @@ Follow these strict DM instructions:
    - SURVIVAL OVERRIDE: If in immediate, life-threatening danger (e.g., drowning, falling), ALL choices must focus on desperately escaping/surviving.
    - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing. You MUST dedicate at least one option to actively utilizing the specific 'Current Location' environment (e.g., throwing a tavern chair, pushing an enemy into a hazard, or taking cover behind market stalls).
    - SOCIAL OVERRIDE: If locked in an intense conversation or negotiation, ALL choices must be dialogue options or social actions.
-   - CAMPING OVERRIDE: If the player is resting or setting up camp, ALL choices must be camp activities (eating, tending wounds, crafting, sleeping, bonding). Note: Enforce bodily needs; if the player hasn't eaten or slept in a while, explicitly remind them of their hunger/exhaustion in the narrative and offer an option to consume rations.
+   - CAMPING OVERRIDE: If the player is resting or setting up camp, ALL choices must be camp activities (eating, tending wounds, crafting, sleeping, bonding). Note: The 'Hunger' and 'Fatigue' fields in your Context are the ground truth for bodily needs. If Hunger is 'Hungry' or 'Starving', you MUST offer an option to consume rations and call 'trigger_world_keeper' with 'set_bodily_needs: 0 | current_fatigue' when they eat. If Fatigue is 'Tired' or 'Exhausted', you MUST offer sleep and call 'trigger_world_keeper' with the updated levels.
    - DEFAULT EXPLORATION (If none of the above apply): You MUST heavily accelerate the story pacing to prevent boring, slow loops. For any Active Quest in the Current Location, dedicate 1-2 options to progressing it in DIFFERENT ways (e.g., a stealth approach vs a technical approach). You MUST make these options highly insightful by explicitly weaving in natural narrative hints about "what to do next". (IMPORTANT: NEVER use immersion-breaking meta-words like "breadcrumb", "clue", "quest", or "plot" in your actual story text). Crucially, if the player possesses specific items in their 'Inventory', or has 'Unlocked Lore'/'Secrets' that act as prerequisites, you MUST weave those specific advantages into the options (e.g., "Use the Black-Site Passcard you found earlier to bypass the heavy security door"). Rarely (10% of the time), include a High Risk / High Reward option. Remaining non-quest options MUST be highly thematic to the 'Current Location' Type but kept as low-stakes background flavor so they are not overwhelming (e.g., if in a 'City', offer to browse a market or listen to a street preacher; if in 'Ruins', offer to scavenge basic scrap or inspect strange flora). Do NOT offer high-stakes thematic events (like deadly traps or gang ambushes) every turn; keep them rare. Make it extremely clear through your vivid descriptions whether an option pushes the main story forward or is just casual flavor exploration.
    Do NOT use meta-labels for any options. End with a note that they can describe their own action.
 5. Do NOT invent observations. Always call the tools if you need to know stats, roll checks, or get subagent states.
@@ -847,12 +847,17 @@ Available Tools:
         lore_str = ", ".join(lore_titles) if lore_titles else "None"
         secrets_str = ", ".join(secrets_list) if secrets_list else "None"
 
+        hunger_labels = ["Full", "Hungry", "Starving"]
+        fatigue_labels = ["Rested", "Tired", "Exhausted"]
         context_str = (
             f"Character Status: {cond} | "
             f"Currency: {char.currency} | "
             f"Equipped: {', '.join(eq_list) if eq_list else 'None'} | "
             f"Inventory: {', '.join(inv_list) if inv_list else 'Empty'} | "
             f"Skills: {', '.join(tags_list)} | "
+            f"Hunger: {hunger_labels[world.hunger]} | "
+            f"Fatigue: {fatigue_labels[world.fatigue]} | "
+            f"Weather: {world.weather if world.weather else 'Clear'} | "
             f"Relationships: {rel_str} | "
             f"Factions: {factions_summary} | "
             f"Faction Clocks: {clocks_summary} | "
