@@ -973,11 +973,14 @@ Available Tools:
             
         heartbeat_occurred = False
         heartbeat_log = ""
-        if world.turn_count >= heartbeat_target:
+        # Run heartbeats if turn count reaches target, OR on every turn for the first 3 turns
+        # of the adventure to dynamically align opening story beats with player actions.
+        if world.turn_count >= heartbeat_target or world.turn_count <= 3:
             heartbeat_occurred = True
-            # Roll next target
-            heartbeat_target = world.turn_count + random.randint(5, 10)
-            world.next_heartbeat_turn = heartbeat_target
+            if world.turn_count >= heartbeat_target:
+                # Roll next target
+                heartbeat_target = world.turn_count + random.randint(5, 10)
+                world.next_heartbeat_turn = heartbeat_target
             
             # Fire heartbeats
             wk_res = self.world_keeper.heartbeat(budget_mode=self.budget_mode)

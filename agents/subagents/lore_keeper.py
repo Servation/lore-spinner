@@ -365,16 +365,31 @@ Your tools are:
         
         heartbeat_logs = []
 
+        # Read DM log if it exists to provide context of recent events
+        dm_log_content = "No log found."
+        dm_log_path = os.path.join("saves", self.campaign_slug, "dm_log.md")
+        if os.path.exists(dm_log_path):
+            with open(dm_log_path, "r", encoding="utf-8") as f:
+                dm_log_content = f.read()
+
+        # Format quest status context
+        quests_list = []
+        for q in world.active_quests:
+            quests_list.append(f"- Quest Name: {q.name} (ID: {q.id}), Status: {q.status}, Description: {q.description}")
+        quests_str = "\n".join(quests_list) if quests_list else "No active quests."
+
         if world.escalated_rumors:
             rumors_str = ", ".join(world.escalated_rumors)
             arc_str = world.campaign_arc if world.campaign_arc else "None (Create one now based on these rumors)"
             
             query = (
                 f"HEARTBEAT: The following rumors were escalated by the DM: [{rumors_str}]. "
-                f"The current Campaign Arc is: [{arc_str}]. "
+                f"The current Campaign Arc is: [{arc_str}]. \n\n"
+                f"Here is the DM log of recent events for context:\n"
+                f"\"\"\"\n{dm_log_content}\n\"\"\"\n\n"
                 f"Weave these escalated rumors into a new Narrative Thread (Quest) and add it. "
                 f"If there is no Campaign Arc, use 'update_campaign_arc' to create one now. "
-                f"IMPORTANT: You MUST also call 'update_story_beat' with a specific, actionable 1-2 sentence directive telling the DM what the next narrative moment should be (e.g., 'Have the resistance contact approach the player with urgent intel about a traitor')."
+                f"IMPORTANT: You MUST also call 'update_story_beat' with a specific, actionable 1-2 sentence directive telling the DM what the next narrative moment should be, adapted to the player's immediate context."
             )
             
             res = self.run(query, max_turns=4, verbose=False, agent_name="LoreKeeper")
@@ -402,12 +417,15 @@ Your tools are:
                 spine_query = (
                     f"SPINE CHECK: The current story beat is Beat {active_beat.id} — '{active_beat.name}'. "
                     f"Dramatic question: '{active_beat.dramatic_question}'. "
-                    f"Pressure mechanism if stalling: '{active_beat.pressure_mechanism}'. "
-                    f"Review the DM log and quest statuses. "
-                    f"If the dramatic question has been answered, call 'advance_spine_beat' with resolution notes. "
-                    f"If the player seems to be ignoring the main story, activate the pressure mechanism "
-                    f"(e.g., add a World Aspect, spawn a faction event, or update the story beat to escalate urgency). "
-                    f"If things are progressing naturally, just update the Director's Brief via 'update_story_beat'."
+                    f"Pressure mechanism if stalling: '{active_beat.pressure_mechanism}'. \n\n"
+                    f"Here is the DM log of recent events:\n"
+                    f"\"\"\"\n{dm_log_content}\n\"\"\"\n\n"
+                    f"Here are the active quests:\n{quests_str}\n\n"
+                    f"Your instructions:\n"
+                    f"1. Determine if the active story beat's dramatic question has been resolved by checking the DM log and quest statuses. "
+                    f"If the dramatic question has been answered, call 'advance_spine_beat' with resolution notes.\n"
+                    f"2. If the player seems to be ignoring the main story or stalling, activate the pressure mechanism (e.g. add a World Aspect, spawn a faction event, or update the story beat to escalate urgency).\n"
+                    f"3. Update the Director's Brief (`next_story_beat`) using 'update_story_beat' to provide the DM with a specific, actionable 1-2 sentence directive for the next turn. Adapt it to the player's current location, immediate actions, and choices in the DM log so the narrative flows naturally."
                 )
                 self.run(spine_query, max_turns=4, verbose=False, agent_name="LoreKeeper")
                 heartbeat_logs.append(f"Checked story spine progression for Beat {active_beat.id}.")
