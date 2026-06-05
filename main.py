@@ -138,9 +138,16 @@ Example format: ["Variation one...", "Variation two...", "Variation three...", "
             print_styled("[AI Enhance failed — submitting your original draft.]", COLOR_SYSTEM)
             return draft
 
-    # Step 4: Let player choose from enhanced options
+    # Print full versions first so player can read them completely without TUI truncation issues
+    print_styled("\n--- AI Enhanced Options ---", COLOR_SYSTEM)
+    for i, opt in enumerate(enhanced_options[:4], 1):
+        print_styled(f"{i}. {opt}\n", COLOR_DM)
+    print_styled("-" * 27, COLOR_SYSTEM)
+
+    # Step 4: Let player choose from enhanced options (showing shorthand previews in TUI)
     keep_label = f'Keep my original: "{draft[:60]}{"..." if len(draft) > 60 else ""}"'
-    final_choices = enhanced_options[:4] + [keep_label, "Write a new draft"]
+    ai_choices = [f"{i}. {opt[:80]}..." for i, opt in enumerate(enhanced_options[:4], 1)]
+    final_choices = ai_choices + [keep_label, "Write a new draft"]
 
     final_choice = questionary.select(
         "Choose an enhanced version or keep your original:",
@@ -155,7 +162,9 @@ Example format: ["Variation one...", "Variation two...", "Variation three...", "
     if final_choice == "Write a new draft":
         return get_enhanced_custom_input(llm_client, prompt_label, context_text, style)
 
-    return final_choice
+    # Return the full (untruncated) version of the chosen option
+    idx = ai_choices.index(final_choice)
+    return enhanced_options[idx]
 
 def generate_setting_pitches(llm_client) -> List[str]:
     import random
