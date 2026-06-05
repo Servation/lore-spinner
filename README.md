@@ -7,6 +7,7 @@ An immersive, text-based narrative role-playing game powered by a multi-agent AI
 - **Genre-Agnostic Settings**: Mix and match sci-fi, fantasy, historical, cyberpunk, apocalyptic, or custom themes.
 - **Narrative Character Creation**: A 4-question narrative interview that dynamically generates starting attributes and structured backstory fields (childhood, past life, sentimental item, and core fear).
 - **Adaptive Story Spine**: The game dynamically builds a 5-beat dramatic structure (Hook, Deepening, Reversal, Crisis, Reckoning) tailored to the character's background and core fear.
+- **Anti-Lock Story & Location Loop Prevention**: An intelligent loop-detection system driven by a lightweight **Story Critic** subagent. It dynamically monitors turn history and player inputs to detect narrative loops and location rubber-banding. It tracks player intent (Questing vs. Shopping/Socializing/Exploring) to protect player agency, enforcing state-driven pressure cooldowns and injecting loop-breaking instructions directly to the DM.
 - **Key Cast & NPC Promotion**: Tracks a registry (`cast.json`) containing Spine Characters (Anchor, Catalyst, Adversary) and Promoted NPCs with unique personalities and hidden agendas. Lightweight faction NPCs are promoted when the player interacts with them frequently.
 - **AI-Enhanced Custom Input**: An interactive UI feature where the player can submit a draft custom action and request the LLM to polish/enhance it into 4 highly-descriptive, genre-appropriate alternatives.
 - **Local Location Scene Transitions**: Mechanical location tracking system (`register_and_move_location` tool) that updates `current_location_id` for local movement. Features case-insensitive deduplication to prevent duplicate map nodes.
@@ -107,7 +108,9 @@ During your turn, you can choose from the generated choices, type a custom actio
 ---
 
 ## Running Tests
-Run the unit test suite to verify the game engine mechanics:
+Run the unit test suites to verify the game engine mechanics, progression, and Story Critic integration:
 ```bash
 python test_engine.py
+python test_progression.py
+python test_critic_integration.py
 ```

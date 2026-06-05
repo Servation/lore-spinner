@@ -217,6 +217,11 @@ class WorldState:
     investigation_focus: str = ""  # Non-empty = Investigation Override active; describes the puzzle/scene
     travel_journey: str = ""       # Non-empty = Travel Override active; describes the route and destination
     is_camping: bool = False        # True = Camping Override active
+    # Anti-lock state tracking
+    turns_on_current_beat: int = 0              # How many turns the story has lingered on the same beat
+    last_beat_id: int = -1                      # The beat ID from the previous heartbeat check
+    pressure_cooldown: int = 0                  # Turns remaining before the Critic can escalate again
+    recent_player_actions: List[str] = field(default_factory=list)  # Rolling buffer of last 5 raw player action strings
 
     TIMES_OF_DAY = ["Morning", "Noon", "Afternoon", "Dusk", "Night", "Midnight"]
 
@@ -316,7 +321,11 @@ class WorldState:
             "investigation_focus": self.investigation_focus,
             "travel_journey": self.travel_journey,
             "is_camping": self.is_camping,
-            "next_story_beat": self.next_story_beat
+            "next_story_beat": self.next_story_beat,
+            "turns_on_current_beat": self.turns_on_current_beat,
+            "last_beat_id": self.last_beat_id,
+            "pressure_cooldown": self.pressure_cooldown,
+            "recent_player_actions": self.recent_player_actions
         }
 
     @classmethod
@@ -363,5 +372,9 @@ class WorldState:
             investigation_focus=data.get("investigation_focus", ""),
             travel_journey=data.get("travel_journey", ""),
             is_camping=data.get("is_camping", False),
-            next_story_beat=data.get("next_story_beat", "")
+            next_story_beat=data.get("next_story_beat", ""),
+            turns_on_current_beat=data.get("turns_on_current_beat", 0),
+            last_beat_id=data.get("last_beat_id", -1),
+            pressure_cooldown=data.get("pressure_cooldown", 0),
+            recent_player_actions=data.get("recent_player_actions", [])
         )

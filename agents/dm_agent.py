@@ -7,6 +7,7 @@ from agents.subagents.world_keeper import WorldKeeper
 from agents.subagents.faction_weaver import FactionWeaver
 from agents.subagents.encounter_architect import EncounterArchitect
 from agents.subagents.lore_keeper import LoreKeeper
+from agents.subagents.story_critic import StoryCritic
 from game_engine.character import Character
 from game_engine.world import WorldState
 from game_engine.dice import roll_check
@@ -25,6 +26,7 @@ class DMAgent(BaseAgent):
         self.faction_weaver = FactionWeaver(llm_client, campaign_slug)
         self.encounter_architect = EncounterArchitect(llm_client, campaign_slug)
         self.lore_keeper = LoreKeeper(llm_client, campaign_slug)
+        self.story_critic = StoryCritic(llm_client, campaign_slug)
         
         self.tools = self._get_tools()
         self.system_instruction = "" # Will be built dynamically before running
@@ -867,7 +869,22 @@ class DMAgent(BaseAgent):
         elif world.is_camping:
             override_rules = "   - CAMPING OVERRIDE: If the player sets up camp or rests, you MUST call 'set_override_state: camping | [camp description]' to lock this mode. ALL choices must be camp activities (eating, tending wounds, crafting, sleeping, bonding). The 'Hunger' and 'Fatigue' fields in Context are the ground truth for bodily needs — use 'trigger_world_keeper' with 'set_bodily_needs' to update them when the player eats or sleeps. IMPORTANT RECOVERY RULE: Sleeping resets Fatigue to 0 but INCREASES Hunger by 1 (call 'set_bodily_needs' to apply this). Sleeping also passively heals a small amount of HP (e.g., +5 HP using 'heal_character'). To fully heal or cure Hunger, the player MUST consume medical supplies or rations using 'use_consumable_item'. When the player breaks camp, call 'set_override_state: clear | camping'."
         else:
-            override_rules = "   - DEFAULT EXPLORATION: Your PRIMARY goal is to advance the DIRECTOR'S BRIEF at the top of the Context block. At least 1-2 of your options MUST directly progress the Director's Brief or the [MAIN] quest. You MUST make these options highly insightful by explicitly weaving in natural narrative hints about \"what to do next\". Crucially, if the player possesses specific items in their 'Inventory', or has 'Unlocked Lore'/'Secrets' that act as prerequisites, you MUST weave those specific advantages into the options (e.g., \"Use the Black-Site Passcard you found earlier to bypass the heavy security door\"). You may also dedicate one option to naturally exploring or traveling to a new nearby sub-location or point of interest. Rarely (10% of the time), include a High Risk / High Reward option. Remaining non-quest options MUST be highly thematic to the 'Current Location' Type but kept as low-stakes background flavor so they are not overwhelming (e.g., if in a 'City', offer to browse a market or listen to a street preacher; if in 'Ruins', offer to scavenge basic scrap or inspect strange flora). Do NOT offer high-stakes thematic events (like deadly traps or gang ambushes) every turn; keep them rare. Make it extremely clear through your vivid descriptions whether an option pushes the main story forward or is just casual flavor exploration. You MUST randomize the order of the 3-4 options so that the story-progressing choice is not always option #1."
+            override_rules = (
+                "   - DEFAULT EXPLORATION: Weave the DIRECTOR'S BRIEF naturally into the scene. "
+                "At least ONE of your 3-4 options should relate to the main quest or Director's Brief, "
+                "but it should feel like an organic discovery — not a forced redirect. "
+                "The other options should reflect what the player is currently doing and the environment they're in. "
+                "If the player is clearly pursuing their own goal (shopping, socializing, exploring), "
+                "RESPECT their agency and let them finish before nudging them toward the main story thread. "
+                "You MUST make quest-related options insightful by weaving in player inventory, "
+                "Unlocked Lore, and Secrets as contextual advantages. "
+                "You may also dedicate one option to exploring a nearby sub-location or point of interest. "
+                "Rarely (10% of the time), include a High Risk / High Reward option. "
+                "Remaining non-quest options MUST be highly thematic to the 'Current Location' Type "
+                "but kept as low-stakes background flavor so they are not overwhelming. "
+                "Do NOT offer high-stakes thematic events (like deadly traps or gang ambushes) every turn; keep them rare. "
+                "You MUST randomize the order of the 3-4 options so that the story-progressing choice is not always option #1."
+            )
 
         if not is_combat and not override_rules.startswith("   - DEFAULT EXPLORATION"):
             override_rules += "\n   *BREAKOUT OPTIONS & CUSTOM ACTIONS:*\n   For Stealth, Social, Investigation, Travel, and Camping overrides ONLY, you MUST usually dedicate one option to logically abandoning the task or breaking out of the mode (e.g., \"Abandon the hack and step away from the terminal\", \"Insult the Captain and draw your weapon\", \"Turn back from the road\"). If a player selects this option, or if they type a Custom Action that intentionally ignores the override context to do something drastically different (e.g., pulling a gun mid-negotiation), you must evaluate if the breakout makes narrative sense. If it does, naturally transition the scene, call 'set_override_state: clear | [state]', and trigger the appropriate tools (like 'trigger_encounter_architect' for sudden violence)."
@@ -963,6 +980,11 @@ Available Tools:
             world_data = json.load(f)
         world = WorldState.from_dict(world_data)
         world.increment_turn()
+
+        # --- TRACK RECENT PLAYER ACTIONS ---
+        world.recent_player_actions.append(player_action[:150])  # Cap length
+        if len(world.recent_player_actions) > 5:
+            world.recent_player_actions.pop(0)
         
         # 2. Check for Heartbeat cycle
         # We store the next heartbeat target turn in world_state.json if not present
@@ -973,19 +995,50 @@ Available Tools:
             
         heartbeat_occurred = False
         heartbeat_log = ""
-        # Run heartbeats if turn count reaches target, OR on every turn for the first 3 turns
-        # of the adventure to dynamically align opening story beats with player actions.
-        if world.turn_count >= heartbeat_target or world.turn_count <= 3:
+        critic_assessment = None
+        # Run heartbeats if turn count reaches target, OR on turn 1 only for initial setup
+        # to dynamically align opening story beats with player actions.
+        if world.turn_count >= heartbeat_target or world.turn_count == 1:
             heartbeat_occurred = True
             if world.turn_count >= heartbeat_target:
                 # Roll next target
                 heartbeat_target = world.turn_count + random.randint(5, 10)
                 world.next_heartbeat_turn = heartbeat_target
             
-            # Fire heartbeats
+            # --- STEP 1: RUN STORY CRITIC FIRST ---
+            critic_assessment = self.story_critic.evaluate(player_action)
+            
+            # Update beat-stall tracking
+            active_beat = world.story_spine.get_active_beat() if world.story_spine else None
+            current_beat_id = active_beat.id if active_beat else -1
+            if current_beat_id == world.last_beat_id:
+                world.turns_on_current_beat += 1
+            else:
+                world.turns_on_current_beat = 0
+                world.last_beat_id = current_beat_id
+            
+            # Decrement pressure cooldown
+            if world.pressure_cooldown > 0:
+                world.pressure_cooldown -= 1
+            
+            # Apply cooldown if Critic escalated
+            if critic_assessment["directive"] == "gentle_pull":
+                world.pressure_cooldown = 3
+            elif critic_assessment["directive"] == "force_event":
+                world.pressure_cooldown = 5
+            
+            # --- STEP 2: FIRE SUBAGENT HEARTBEATS ---
+            # Save world state first so the Critic's tracking data is available to subagents
+            with open(world_path, "w", encoding="utf-8") as f:
+                json.dump(world.to_dict(), f, indent=4)
+            
             wk_res = self.world_keeper.heartbeat(budget_mode=self.budget_mode)
             fw_res = self.faction_weaver.heartbeat(budget_mode=self.budget_mode)
-            lk_res = self.lore_keeper.heartbeat(budget_mode=self.budget_mode)
+            # Pass critic assessment to LoreKeeper so it doesn't conflict
+            lk_res = self.lore_keeper.heartbeat(
+                budget_mode=self.budget_mode, 
+                critic_assessment=critic_assessment
+            )
             heartbeat_log = f"\n[Heartbeat Event: {wk_res} {fw_res} {lk_res}]"
             
         # Write back world state
@@ -1281,6 +1334,15 @@ Available Tools:
         if heartbeat_occurred:
             query += f" Note: A world heartbeat just triggered: {heartbeat_log}."
             
+        # --- INJECT CRITIC WARNING ---
+        if critic_assessment and critic_assessment.get("is_repeating"):
+            critic_warning = (
+                f"⚠️ [CRITIC WARNING — REPETITION DETECTED]: {critic_assessment['critic_note']}\n"
+                f"You MUST introduce a NEW scene, NEW NPC interaction, or a dramatic event. "
+                f"Do NOT describe the same scene or offer the same choices as last turn.\n"
+            )
+            query = critic_warning + query
+
         dm_response = self.run(query, max_turns=12, verbose=self.verbose, agent_name="DM")
         
         # Save turn history (last 3 turns)

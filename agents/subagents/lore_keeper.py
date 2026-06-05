@@ -351,7 +351,7 @@ Your tools are:
         query = f"Location: {location}. Action: {action}. Determine if any secrets are unlocked or quests advanced."
         return self.run(query, max_turns=3, verbose=False, agent_name="LoreKeeper")
 
-    def heartbeat(self, budget_mode: bool = False) -> str:
+    def heartbeat(self, budget_mode: bool = False, critic_assessment: dict = None) -> str:
         if budget_mode:
             return "LoreKeeper heartbeat skipped (Budget Mode)."
             
@@ -414,17 +414,32 @@ Your tools are:
         if world.story_spine and world.story_spine.beats:
             active_beat = world.story_spine.get_active_beat()
             if active_beat:
+                # Build critic context string
+                critic_context = ""
+                if critic_assessment:
+                    critic_context = (
+                        f"\n\nSTORY CRITIC ASSESSMENT:\n"
+                        f"- Player Mode: {critic_assessment.get('player_mode', 'quest')}\n"
+                        f"- Repetition Detected: {critic_assessment.get('is_repeating', False)}\n"
+                        f"- Recommended Directive: {critic_assessment.get('directive', 'organic')}\n"
+                        f"- Critic Note: {critic_assessment.get('critic_note', 'N/A')}\n"
+                    )
+
                 spine_query = (
                     f"SPINE CHECK: The current story beat is Beat {active_beat.id} — '{active_beat.name}'. "
                     f"Dramatic question: '{active_beat.dramatic_question}'. "
                     f"Pressure mechanism if stalling: '{active_beat.pressure_mechanism}'. \n\n"
                     f"Here is the DM log of recent events:\n"
                     f"\"\"\"\n{dm_log_content}\n\"\"\"\n\n"
-                    f"Here are the active quests:\n{quests_str}\n\n"
+                    f"Here are the active quests:\n{quests_str}\n"
+                    f"{critic_context}\n"
                     f"Your instructions:\n"
                     f"1. Determine if the active story beat's dramatic question has been resolved by checking the DM log and quest statuses. "
                     f"If the dramatic question has been answered, call 'advance_spine_beat' with resolution notes.\n"
-                    f"2. If the player seems to be ignoring the main story or stalling, activate the pressure mechanism (e.g. add a World Aspect, spawn a faction event, or update the story beat to escalate urgency).\n"
+                    f"2. CHECK THE STORY CRITIC ASSESSMENT ABOVE before deciding whether to pressure.\n"
+                    f"   - If the Critic's directive is 'organic': Do NOT activate pressure. The player is engaged in their own activity. Instead, update the Director's Brief to weave a SUBTLE quest hook into whatever the player is currently doing (e.g., if they're shopping, the merchant could mention a rumor related to the quest).\n"
+                    f"   - If the Critic's directive is 'gentle_pull': Update the Director's Brief with an environmental hook that naturally connects the player's current situation to the main quest. Do NOT use World Aspects or faction events yet.\n"
+                    f"   - If the Critic's directive is 'force_event': The story has been stuck too long. Activate the pressure mechanism aggressively — spawn a World Aspect, trigger a faction event, or have an NPC burst in with urgent news. Make it unavoidable.\n"
                     f"3. Update the Director's Brief (`next_story_beat`) using 'update_story_beat' to provide the DM with a specific, actionable 1-2 sentence directive for the next turn. Adapt it to the player's current location, immediate actions, and choices in the DM log so the narrative flows naturally."
                 )
                 self.run(spine_query, max_turns=4, verbose=False, agent_name="LoreKeeper")
