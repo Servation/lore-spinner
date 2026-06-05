@@ -5,7 +5,11 @@ An immersive, text-based narrative role-playing game powered by a multi-agent AI
 ## Core Features
 
 - **Genre-Agnostic Settings**: Mix and match sci-fi, fantasy, historical, cyberpunk, apocalyptic, or custom themes.
-- **Narrative Character Creation**: A 3-question narrative interview that dynamically generates starting attributes.
+- **Narrative Character Creation**: A 4-question narrative interview that dynamically generates starting attributes and structured backstory fields (childhood, past life, sentimental item, and core fear).
+- **Adaptive Story Spine**: The game dynamically builds a 5-beat dramatic structure (Hook, Deepening, Reversal, Crisis, Reckoning) tailored to the character's background and core fear.
+- **Key Cast & NPC Promotion**: Tracks a registry (`cast.json`) containing Spine Characters (Anchor, Catalyst, Adversary) and Promoted NPCs with unique personalities and hidden agendas. Lightweight faction NPCs are promoted when the player interacts with them frequently.
+- **AI-Enhanced Custom Input**: An interactive UI feature where the player can submit a draft custom action and request the LLM to polish/enhance it into 4 highly-descriptive, genre-appropriate alternatives.
+- **Local Location Scene Transitions**: Mechanical location tracking system (`register_and_move_location` tool) that updates `current_location_id` for local movement. Features case-insensitive deduplication to prevent duplicate map nodes.
 - **Hidden Stats & Narrative Authority**: The player experiences outcomes purely through immersive narration rather than seeing dice rolls, difficulty classes, or raw stats. Abilities level up dynamically in the background through actions ("learn-by-doing"), and the DM weaves mechanical outcomes seamlessly into the fiction.
 - **Multi-Agent DM System**:
   - **DM Agent**: Narrates events, resolves checks, and offers choices. The DM also performs strict **Contextual Verification** behind the screen, checking the player's claims against their actual inventory and skills to prevent narrative exploits.

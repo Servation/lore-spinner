@@ -25,7 +25,7 @@ You run in a ReAct loop. When called:
 
 Your tools are:
 - spawn_encounter: Spawns enemies. Format: 'enemy_name | threat_level | setting_genre | count | narrative_desc'. Usage: Action: spawn_encounter: Security Droid | 2 | cyberpunk | 3 | A patrol of 3 droids.
-- add_loot: Configures loot. Format: 'item_name | description | slot | tag_modifiers_json'. Usage: Action: add_loot: Reflex Booster | Cybernetic implant giving reflex gains | accessory | {"evasion": 1}
+- add_loot: Configures loot. For the description, write a narrative description that implies what the item does without raw numbers. Format: 'item_name | description | slot | tag_modifiers_json'. Usage: Action: add_loot: Reflex Booster | A sleek implant that noticeably quickens your reflexes | accessory | {"evasion": 1}
 - clear_encounter: Resets the active encounter when combat is finished. Usage: Action: clear_encounter
 """
         super().__init__(llm_client, self.tools, sys_instruction)

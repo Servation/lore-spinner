@@ -10,7 +10,7 @@ from agents.subagents.lore_keeper import LoreKeeper
 from game_engine.character import Character
 from game_engine.world import WorldState
 from game_engine.dice import roll_check
-from game_engine.combat import resolve_combat_turn, Enemy
+from game_engine.combat import Enemy
 from persistence.log_manager import write_dm_log
 
 class DMAgent(BaseAgent):
@@ -84,6 +84,16 @@ class DMAgent(BaseAgent):
             if not ae:
                 return "No active encounter/fight is currently happening."
             return json.dumps(ae)
+
+        def clear_active_encounter(dummy: str) -> str:
+            path = os.path.join("saves", self.campaign_slug, "encounters.json")
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                data["active_encounter"] = None
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=4)
+            return "Active encounter cleared. Combat has ended."
 
         def roll_ability_check(args: str) -> str:
             """Format: 'tag_name | DC'. E.g. 'stealth | 12' or fallback 'stealth'"""
@@ -384,8 +394,19 @@ class DMAgent(BaseAgent):
             effect_msg = []
             heal_amt = target_item.tag_modifiers.get("heal") or target_item.tag_modifiers.get("hp")
             if heal_amt:
+                world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+                with open(world_path, "r", encoding="utf-8") as f:
+                    world_data = json.load(f)
+                in_camp = world_data.get("is_camping", False)
+                
+                if not in_camp:
+                    heal_amt = max(1, heal_amt // 2)
+                    
                 healed = char.heal(heal_amt)
-                effect_msg.append(f"Healed {healed} HP")
+                msg = f"Healed {healed} HP"
+                if not in_camp:
+                    msg += " (Reduced effectiveness outside of camp)"
+                effect_msg.append(msg)
                 
             other_mods = {k: v for k, v in target_item.tag_modifiers.items() if k not in ["heal", "hp"]}
             if other_mods:
@@ -695,10 +716,84 @@ class DMAgent(BaseAgent):
                 return f"Camping Override activated: '{desc}'."
             return "Error: State must be 'survival', 'social', 'stealth', 'investigation', 'travel', 'camping', or 'clear'."
 
+        def register_and_move_location(args: str) -> str:
+            """Moves the player to a local area within the current town. Creates the location if it doesn't exist.
+            Format: 'Name | Description | Type'.
+            Usage: Action: register_and_move_location: Hemlock's Store | A dusty general store run by an old man | shop
+            """
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 3:
+                return "Error: Format must be 'Name | Description | Type'."
+            
+            loc_name = parts[0]
+            loc_desc = parts[1]
+            loc_type = parts[2]
+            
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            with open(world_path, "r", encoding="utf-8") as f:
+                world = WorldState.from_dict(json.load(f))
+            
+            # --- DEDUP CHECK ---
+            # If a location with the same name (case-insensitive) already exists,
+            # just move the player there instead of creating a duplicate node.
+            existing = None
+            for loc in world.discovered_locations:
+                if loc.name.lower() == loc_name.lower():
+                    existing = loc
+                    break
+            
+            if existing:
+                world.current_location_id = existing.id
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                return f"Moved player to existing location: '{existing.name}'."
+            
+            # --- CREATE NEW NODE ---
+            import uuid
+            from game_engine.world import Location
+            
+            old_location_id = world.current_location_id
+            
+            new_loc = Location(
+                id=str(uuid.uuid4()),
+                name=loc_name,
+                description=loc_desc,
+                type=loc_type,
+                discovered_turn=world.turn_count,
+                theme="default"
+            )
+            
+            # Wire bidirectional connections to the previous location
+            new_loc.connections.append(old_location_id)
+            for loc in world.discovered_locations:
+                if loc.id == old_location_id:
+                    loc.connections.append(new_loc.id)
+                    break
+            
+            world.discovered_locations.append(new_loc)
+            world.current_location_id = new_loc.id
+            
+            with open(world_path, "w", encoding="utf-8") as f:
+                json.dump(world.to_dict(), f, indent=4)
+            
+            return f"Successfully moved player to new location: '{loc_name}'."
+
+        def query_cast(dummy: str) -> str:
+            """Returns the full cast of important NPCs (Spine Characters and Promoted NPCs).
+            Usage: Action: query_cast"""
+            cast_path = os.path.join("saves", self.campaign_slug, "cast.json")
+            if not os.path.exists(cast_path):
+                return "No cast file found."
+            with open(cast_path, "r", encoding="utf-8") as f:
+                return f.read()
+
         return {
-            "get_character_sheet": get_character_sheet,
-            "get_world_details": get_world_details,
+            "register_and_move_location": register_and_move_location,
+            "query_cast": query_cast,
+            "query_world_bible": query_world_bible,
+            "query_unlocked_lore": query_unlocked_lore,
             "get_active_encounter": get_active_encounter,
+            "clear_active_encounter": clear_active_encounter,
             "roll_ability_check": roll_ability_check,
             "equip_item": equip_item,
             "heal_character": heal_character,
@@ -735,6 +830,48 @@ class DMAgent(BaseAgent):
         genre = world.setting_genre
         traits = ", ".join(world.dm_traits)
         
+        if self.verbose:
+            presentation_rule = 'IMPORTANT PRESENTATION RULE: To assist the player, you MUST explicitly prepend an asterisk (*) to any option that progresses a quest or moves the main story forward. Do NOT add asterisks or any special tags to casual flavor options. For example: "2. * Confront the Smuggler." vs "1. Browse the local merchant\'s wares." End with a note that they can describe their own action. You MUST randomize the order of the 3-4 options so that the story-progressing choice is not always option #1.'
+        else:
+            presentation_rule = 'IMPORTANT PRESENTATION RULE: Do NOT use meta-labels, tags, or asterisks for ANY of the options. Keep them completely immersive and natural. End with a note that they can describe their own action. You MUST randomize the order of the 3-4 options so that the story-progressing choice is not always option #1.'
+        
+        # Determine active override
+        enc_path = os.path.join("saves", self.campaign_slug, "encounters.json")
+        is_combat = False
+        if os.path.exists(enc_path):
+            try:
+                with open(enc_path, "r", encoding="utf-8") as f:
+                    enc_data = json.load(f)
+                ae = enc_data.get("active_encounter")
+                if ae and ae.get("enemies"):
+                    for e in ae["enemies"]:
+                        if e.get("hp", 0) > 0:
+                            is_combat = True
+                            break
+            except Exception:
+                pass
+
+        override_rules = ""
+        if is_combat:
+            override_rules = "   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing. You MUST dedicate at least one option to actively utilizing the specific 'Current Location' environment (e.g., throwing a tavern chair, pushing an enemy into a hazard, or taking cover behind market stalls). If the player has any physical/combat Ability Tag at +3 or higher, you MUST dedicate one option to a 'Special Maneuver' (e.g., Cleave, Double Attack, Precision Shot) reflecting their high-tier skill. You MUST diegetically describe the danger of the enemy based on their Threat Level (e.g. Threat 1-2 is weak, Threat 3-4 is dangerous, Threat 5+ is terrifyingly powerful). Combat is locked mechanically via encounters.json — you do not need to manually set it."
+        elif world.survival_situation:
+            override_rules = "   - SURVIVAL OVERRIDE: If in immediate, life-threatening danger (e.g., drowning, falling, trapped in a fire), you MUST call 'set_override_state: survival | [description of threat]' to lock this mode, and ALL choices must focus on desperately escaping/surviving. When the threat is resolved, call 'set_override_state: clear | survival'."
+        elif world.stealth_mission:
+            override_rules = "   - STEALTH OVERRIDE: If the player enters a hostile area but combat hasn't started (e.g., sneaking through a compound), you MUST call 'set_override_state: stealth | [target location or enemy]' to lock this mode. ALL choices must be restricted to quiet movement, observing patrols, finding cover, or silent takedowns. When the player gets caught (combat starts) or escapes, call 'set_override_state: clear | stealth'."
+        elif world.social_encounter:
+            override_rules = "   - SOCIAL OVERRIDE: If the player enters an intense, locked conversation or negotiation (interrogation, tense standoff, seduction, diplomacy), you MUST call 'set_override_state: social | [who + the stakes]' to lock this mode, and ALL choices must be dialogue options or social actions. When the conversation resolves, call 'set_override_state: clear | social'."
+        elif world.investigation_focus:
+            override_rules = "   - INVESTIGATION OVERRIDE: If the player is solving a specific puzzle, hacking a terminal, or examining a crime scene, you MUST call 'set_override_state: investigation | [puzzle description]' to lock this mode. ALL choices must be focused intellectual actions (scanning, deducing, bypassing, examining). When the puzzle is solved or abandoned, call 'set_override_state: clear | investigation'."
+        elif world.travel_journey:
+            override_rules = "   - TRAVEL OVERRIDE: If the player initiates a long journey to a new major location via the node map, you MUST call 'set_override_state: travel | [journey description]' to lock this mode. ALL choices must focus on navigating the road (foraging, resting, dealing with weather/bandits/hazards). Use 'trigger_world_keeper' to advance time, which naturally depletes Hunger/Fatigue over the trip. When they arrive at the destination, call 'set_override_state: clear | travel'."
+        elif world.is_camping:
+            override_rules = "   - CAMPING OVERRIDE: If the player sets up camp or rests, you MUST call 'set_override_state: camping | [camp description]' to lock this mode. ALL choices must be camp activities (eating, tending wounds, crafting, sleeping, bonding). The 'Hunger' and 'Fatigue' fields in Context are the ground truth for bodily needs — use 'trigger_world_keeper' with 'set_bodily_needs' to update them when the player eats or sleeps. IMPORTANT RECOVERY RULE: Sleeping resets Fatigue to 0 but INCREASES Hunger by 1 (call 'set_bodily_needs' to apply this). Sleeping also passively heals a small amount of HP (e.g., +5 HP using 'heal_character'). To fully heal or cure Hunger, the player MUST consume medical supplies or rations using 'use_consumable_item'. When the player breaks camp, call 'set_override_state: clear | camping'."
+        else:
+            override_rules = "   - DEFAULT EXPLORATION: Your PRIMARY goal is to advance the DIRECTOR'S BRIEF at the top of the Context block. At least 1-2 of your options MUST directly progress the Director's Brief or the [MAIN] quest. You MUST make these options highly insightful by explicitly weaving in natural narrative hints about \"what to do next\". Crucially, if the player possesses specific items in their 'Inventory', or has 'Unlocked Lore'/'Secrets' that act as prerequisites, you MUST weave those specific advantages into the options (e.g., \"Use the Black-Site Passcard you found earlier to bypass the heavy security door\"). You may also dedicate one option to naturally exploring or traveling to a new nearby sub-location or point of interest. Rarely (10% of the time), include a High Risk / High Reward option. Remaining non-quest options MUST be highly thematic to the 'Current Location' Type but kept as low-stakes background flavor so they are not overwhelming (e.g., if in a 'City', offer to browse a market or listen to a street preacher; if in 'Ruins', offer to scavenge basic scrap or inspect strange flora). Do NOT offer high-stakes thematic events (like deadly traps or gang ambushes) every turn; keep them rare. Make it extremely clear through your vivid descriptions whether an option pushes the main story forward or is just casual flavor exploration. You MUST randomize the order of the 3-4 options so that the story-progressing choice is not always option #1."
+
+        if not is_combat and not override_rules.startswith("   - DEFAULT EXPLORATION"):
+            override_rules += "\n   *BREAKOUT OPTIONS & CUSTOM ACTIONS:*\n   For Stealth, Social, Investigation, Travel, and Camping overrides ONLY, you MUST usually dedicate one option to logically abandoning the task or breaking out of the mode (e.g., \"Abandon the hack and step away from the terminal\", \"Insult the Captain and draw your weapon\", \"Turn back from the road\"). If a player selects this option, or if they type a Custom Action that intentionally ignores the override context to do something drastically different (e.g., pulling a gun mid-negotiation), you must evaluate if the breakout makes narrative sense. If it does, naturally transition the scene, call 'set_override_state: clear | [state]', and trigger the appropriate tools (like 'trigger_encounter_architect' for sudden violence)."
+
         return f"""You are the Dungeon Master (DM) for a text-based RPG set in the genre '{genre}'.
 Your DM personality traits are: {traits}. Maintain this narrative voice and styling at all times!
 
@@ -757,23 +894,13 @@ What do you do?
 
 Follow these strict DM instructions:
 1. ALWAYS begin each response with the prefix 'Thought:' followed by your tactical plans.
-2. NEVER reveal raw numbers, stats, DC values, or rolls in your final Answer. Narrate them flavorfully instead.
+2. NEVER reveal raw numbers, stats, DC values, HP, or rolls in your final Answer. Narrate them flavorfully instead. WOUND STATE RULE: You MUST persistently weave the player's physical condition into your narrative responses (both in combat and exploration) based on their current HP. If HP drops below 75%, describe them as bruised, winded, or scraped. If HP drops below 50%, describe them as bleeding, panting, or limping. If HP drops below 25%, describe them as critically wounded and struggling to survive. This is purely flavor to warn the player; do not impose secret mechanical penalties on their rolls because of low HP.
 3. You have NARRATIVE AUTHORITY: if a dice roll fails by a small margin but success makes the story much more exciting or fun, you can fudge the narrative.
 4. Option Generation: You MUST end every narration by offering exactly 3-4 actionable choices for the player in a numbered list (1, 2, 3, etc.). You must strictly follow these Situational Overrides based on the CURRENT CONTEXT:
-   - SURVIVAL OVERRIDE: If in immediate, life-threatening danger (e.g., drowning, falling, trapped in a fire), you MUST call 'set_override_state: survival | [description of threat]' to lock this mode, and ALL choices must focus on desperately escaping/surviving. When the threat is resolved, call 'set_override_state: clear | survival'.
-   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing. You MUST dedicate at least one option to actively utilizing the specific 'Current Location' environment (e.g., throwing a tavern chair, pushing an enemy into a hazard, or taking cover behind market stalls). If the player has any physical/combat Ability Tag at +3 or higher, you MUST dedicate one option to a 'Special Maneuver' (e.g., Cleave, Double Attack, Precision Shot) reflecting their high-tier skill. You MUST diegetically describe the danger of the enemy based on their Threat Level (e.g. Threat 1-2 is weak, Threat 3-4 is dangerous, Threat 5+ is terrifyingly powerful). Combat is locked mechanically via encounters.json — you do not need to manually set it.
-   - STEALTH OVERRIDE: If the player enters a hostile area but combat hasn't started (e.g., sneaking through a compound), you MUST call 'set_override_state: stealth | [target location or enemy]' to lock this mode. ALL choices must be restricted to quiet movement, observing patrols, finding cover, or silent takedowns. When the player gets caught (combat starts) or escapes, call 'set_override_state: clear | stealth'.
-   - SOCIAL OVERRIDE: If the player enters an intense, locked conversation or negotiation (interrogation, tense standoff, seduction, diplomacy), you MUST call 'set_override_state: social | [who + the stakes]' to lock this mode, and ALL choices must be dialogue options or social actions. When the conversation resolves, call 'set_override_state: clear | social'.
-   - INVESTIGATION OVERRIDE: If the player is solving a specific puzzle, hacking a terminal, or examining a crime scene, you MUST call 'set_override_state: investigation | [puzzle description]' to lock this mode. ALL choices must be focused intellectual actions (scanning, deducing, bypassing, examining). When the puzzle is solved or abandoned, call 'set_override_state: clear | investigation'.
-   - TRAVEL OVERRIDE: If the player initiates a long journey to a new major location via the node map, you MUST call 'set_override_state: travel | [journey description]' to lock this mode. ALL choices must focus on navigating the road (foraging, resting, dealing with weather/bandits/hazards). Use 'trigger_world_keeper' to advance time, which naturally depletes Hunger/Fatigue over the trip. When they arrive at the destination, call 'set_override_state: clear | travel'.
-   - CAMPING OVERRIDE: If the player sets up camp or rests, you MUST call 'set_override_state: camping | [camp description]' to lock this mode. ALL choices must be camp activities (eating, tending wounds, crafting, sleeping, bonding). The 'Hunger' and 'Fatigue' fields in Context are the ground truth for bodily needs — use 'trigger_world_keeper' with 'set_bodily_needs' to update them when the player eats or sleeps. When the player breaks camp, call 'set_override_state: clear | camping'.
+{override_rules}
    
-   *BREAKOUT OPTIONS & CUSTOM ACTIONS:*
-   For Stealth, Social, Investigation, Travel, and Camping overrides ONLY, you MUST usually dedicate one option to logically abandoning the task or breaking out of the mode (e.g., "Abandon the hack and step away from the terminal", "Insult the Captain and draw your weapon", "Turn back from the road"). If a player selects this option, or if they type a Custom Action that intentionally ignores the override context to do something drastically different (e.g., pulling a gun mid-negotiation), you must evaluate if the breakout makes narrative sense. If it does, naturally transition the scene, call 'set_override_state: clear | [state]', and trigger the appropriate tools (like 'trigger_encounter_architect' for sudden violence).
-   
-   - DEFAULT EXPLORATION (If none of the above apply): You MUST heavily accelerate the story pacing to prevent boring, slow loops. For any Active Quest in the Current Location, dedicate 1-2 options to progressing it in DIFFERENT ways (e.g., a stealth approach vs a technical approach). You MUST make these options highly insightful by explicitly weaving in natural narrative hints about "what to do next". (IMPORTANT: NEVER use immersion-breaking meta-words like "breadcrumb", "clue", "quest", or "plot" in your actual story text). Crucially, if the player possesses specific items in their 'Inventory', or has 'Unlocked Lore'/'Secrets' that act as prerequisites, you MUST weave those specific advantages into the options (e.g., "Use the Black-Site Passcard you found earlier to bypass the heavy security door"). Rarely (10% of the time), include a High Risk / High Reward option. Remaining non-quest options MUST be highly thematic to the 'Current Location' Type but kept as low-stakes background flavor so they are not overwhelming (e.g., if in a 'City', offer to browse a market or listen to a street preacher; if in 'Ruins', offer to scavenge basic scrap or inspect strange flora). Do NOT offer high-stakes thematic events (like deadly traps or gang ambushes) every turn; keep them rare. Make it extremely clear through your vivid descriptions whether an option pushes the main story forward or is just casual flavor exploration.
-   Do NOT use meta-labels for any options. End with a note that they can describe their own action.
-5. Do NOT invent observations. Always call the tools if you need to know stats, roll checks, or get subagent states.
+   {presentation_rule}
+5. Factual Adherence & Lore Accuracy: Do NOT invent observations or contradictory lore. Use 'query_world_bible' and 'query_unlocked_lore' for history, mythos, and secrets. Always call tools if you need to know stats, roll checks, or subagent states.
 6. ALWAYS write a log entry summarizing the outcome via the 'write_log_entry' tool. You MUST wait for the 'Observation:' before outputting your 'Answer:'. NEVER output 'Action:' and 'Answer:' in the same response!
 7. Combat Escalation & Execution: If a situation turns hostile (e.g., the player fails a stealth check, threatens an armed NPC, or is ambushed), you MUST instantly use 'trigger_encounter_architect' to formally start the combat engine. IMPORTANT AMBUSH RULE: When the encounter starts, check the Threat Level and Enemy Count in the Context block. If any enemy is Threat Level 5+ OR if there are 3+ enemies, you MUST NOT instantly attack. Instead, narrate the overwhelming, impending danger (a tense standoff) and offer the player a chance to retreat, hide, or prepare tactically. Only low-threat enemies (Threat 1-3) are allowed to freely ambush the player and throw the first punch. While an Active Encounter exists, you MUST use 'apply_combat_turn' on every single turn to execute the rounds mechanically.
    - LOOT: If `apply_combat_turn` returns `enemy_dead: true` and `loot_dropped`, you MUST explicitly narrate the player finding and looting those items in your Answer!
@@ -781,45 +908,51 @@ Follow these strict DM instructions:
    - If successful: Remove the materials and add the custom item with appropriate mechanical stats using 'modify_inventory'.
    - If failed: Narrate a creative consequence (e.g., destroying the materials, taking physical damage from a backfire, or alerting enemies). 
    - Anti-Softlock: If the player fails to craft an item that was strictly required to progress their Active Quest, you MUST subtly weave an alternative solution or path into the environment so they are not permanently stuck.
-9. Player Claim Verification: Players may attempt to narrate outcomes or claim they possess skills, items, or relationships they do not have. You MUST cross-reference all player claims against the provided "Context:" block (specifically "Inventory", "Equipped", "Skills", "Relationships", "Faction Clocks"). If a player attempts to use an item they do not have, or attempts a feat requiring a skill they do not possess, you must narrate their mechanical failure or failure to find the item in their pockets.
+9. Player Validity & Spatial Limits: Cross-reference all player claims against the Context block (Inventory, Skills). The player can ONLY interact with entities and structures present in their 'Current Location'. If they attempt to use an item they don't have, attempt a feat requiring a skill they don't possess, or interact with something located elsewhere, narrate their mechanical failure and refuse the action.
 10. Contested Resolution: If a player attempts any difficult, risky, or contested action, you MUST call 'roll_ability_check' using the most relevant ability tag. Never let the player narrate their own guaranteed success.
-11. Local Rumors: Always try to weave "Local Rumors" or "Active Quests" into the narrative when the player is exploring their current location, gently nudging them toward interesting stories so they do not stagnate.
+11. Story Progression, Pacing & Scene Transitions: Always weave 'Local Rumors' or 'Active Quests' into exploration. SCENE TRANSITION RULE: If the player decides to move to a new location within the current town/area (e.g. "I head to the general store" or "I walk to the inn"), you MUST instantly transition the scene to their arrival at that new destination. Do NOT drag out the walk or have NPCs stall them with conversational filler unless there is a scripted ambush. CRITICAL: You MUST call 'register_and_move_location' to mechanically move the player to the new location. If you only narrate the move without calling this tool, the player will rubber-band back to their previous location on the next turn because the engine's map was never updated! Furthermore, when a player succeeds at a quest, weave a diegetic confirmation AND narrate a significant leap forward in the story to avoid boring point-and-click loops. IMPORTANT: If a quest requires turning in an item, you MUST use 'modify_inventory' to remove it, and explicitly instruct 'trigger_lore_keeper' to mark it finished.
 12. Travel Enforcement: The game now uses a strict Node-Graph for travel. The player MUST use the system [Travel] menu to move between locations. If they attempt to "travel to the capital" or walk to a new city via a custom text action, explicitly refuse the action and tell them they must use the [Travel] menu to navigate the map.
-13. Time Consumption: If the player attempts a long activity (e.g., sleeping, crafting all day, staking out a location), use the 'advance_time' tool to push the world clock forward by an appropriate number of turns (e.g., 2-4 turns for sleeping).
-14. World Aspects: Actively enforce any "Active World Aspects" present in your context block. If there is a Nemesis, introduce them into scenes; if there is High Heat, have guards patrol; if there is a Trauma/Scar, impose narrative penalties on the player's checks.
-15. Lore Accuracy: Use the 'query_world_bible' tool whenever the player asks about history/mythos, OR whenever you need to introduce a new region, enforce a cultural taboo, or determine the rules of magic/technology. Use the 'query_unlocked_lore' tool if the player asks about a specific Lore Title or Secret listed in your Context. Do not invent contradictory lore; always check these sources first if you lack context.
-16. Spatial Awareness: The player can ONLY interact with entities, items, and structures present in their 'Current Location'. If they attempt to interact with someone or something located elsewhere, refuse the action and remind them they are not there.
-17. Quest Confirmation: If the player's action successfully advances or completes an Active Quest, you MUST weave a very obvious diegetic confirmation directly into your narration (e.g., "You grab the datapad, knowing this is exactly the piece of the puzzle you needed to find the smuggler.") so the player confidently knows their action progressed the quest without needing meta system tags.
-18. Dramatic Pacing: Never trap the player in granular, boring point-and-click loops (e.g., 'You open the drawer, what next?'). If a player succeeds at a quest-related action, you MUST narrate a significant leap forward in the story, instantly pushing them into the next major, interesting scene or revelation.
+13. World Mechanics (Time & Aspects): Actively enforce 'Active World Aspects' (Nemesis, Heat, Trauma) to impose narrative complications. If the player attempts a long activity (sleeping, crafting, stakeouts), use the 'advance_time' tool to push the world clock forward 2-4 turns.
+14. Character Continuity: When Spine Characters or Promoted NPCs appear in a scene, you MUST use 'query_cast' to get their personality, hidden agenda, and current status. Write their dialogue and behavior consistent with their personality. Subtly foreshadow upcoming story beats through NPC behavior without being heavy-handed (e.g., if The Catalyst has a hidden agenda, show small inconsistencies in their behavior that a perceptive player might notice).
 
 Available Tools:
-- get_character_sheet: Returns JSON character sheet. Usage: Action: get_character_sheet
-- get_world_details: Returns JSON world details. Usage: Action: get_world_details
-- query_world_bible: Returns the full World Bible document (history, mythos, culture). Usage: Action: query_world_bible
-- query_unlocked_lore: Searches the full text of all Unlocked Lore and Secrets based on a keyword or title. Usage: Action: query_unlocked_lore: Old Empire
-- get_active_encounter: Returns active combat details if any. Usage: Action: get_active_encounter
+[Core]
 - roll_ability_check: Performs a d20 roll check. Format: 'tag_name | DC'. Usage: Action: roll_ability_check: stealth | 12
-- equip_item: Equips an item from the character inventory. Usage: Action: equip_item: sword
+- write_log_entry: Writes a narrative log entry for the player. ALWAYS call this right before 'Answer'. Usage: Action: write_log_entry: The player discovered the datapad.
 - heal_character: Restores the character's HP. Usage: Action: heal_character: 10
+- modify_inventory: Adds or removes items. For the description, write a narrative description that implies what the item does without raw numbers (e.g., 'A thick coat' not 'Defense 1'). Format: 'add | Name | [desc] | [slot] | [consumable] | [charges]' or 'remove | Name'. Usage: Action: modify_inventory: add | Healing Salve | A soothing paste that closes wounds | None | True | 2
+- use_consumable_item: Uses a consumable item (e.g. healing items or temporary stat boosts). Usage: Action: use_consumable_item: healing salve
+- modify_currency: Adds or removes world currency. Format: 'amount'. Usage: Action: modify_currency: 50
+- equip_item: Equips an item from the character inventory. Usage: Action: equip_item: sword
+
+[Combat]
+- get_active_encounter: Returns active combat details if any. Usage: Action: get_active_encounter
+- clear_active_encounter: Clears the current combat encounter (e.g., if the player successfully flees). Usage: Action: clear_active_encounter
+- trigger_encounter_architect: Queries EncounterArchitect. You MUST include the Current Location and the relevant Active Quest in your query so the encounter is heavily tied to the plot rather than just random filler. Usage: Action: trigger_encounter_architect: spawn an enemy in the Ruins holding the datapad for the smuggler quest
 - apply_combat_turn: Resolves a combat round. Format: 'target_index | tag_name'. Usage: Action: apply_combat_turn: 0 | lasers
+
+[World]
 - trigger_world_keeper: Queries WorldKeeper subagent. Usage: Action: trigger_world_keeper: storm coming
 - trigger_faction_weaver: Queries FactionWeaver subagent. Usage: Action: trigger_faction_weaver: player attacked gang
-- trigger_encounter_architect: Queries EncounterArchitect. You MUST include the Current Location and the relevant Active Quest in your query so the encounter is heavily tied to the plot rather than just random filler. Usage: Action: trigger_encounter_architect: spawn an enemy in the Ruins holding the datapad for the smuggler quest
-- trigger_lore_keeper: Queries LoreKeeper. Usage: Action: trigger_lore_keeper: player found tablet
-- modify_inventory: Adds or removes items. Format: 'add | Name | [desc] | [slot] | [consumable] | [charges]' or 'remove | Name'. Usage: Action: modify_inventory: add | Healing Salve | Heals 10 HP | None | True | 2
-- modify_currency: Adds or removes world currency. Format: 'amount'. Usage: Action: modify_currency: 50
-- disassemble_item: Breaks down an item in inventory into raw salvage components (Junk Metal, Scrap Leather, Scrap Electronics, wire, cloth). Usage: Action: disassemble_item: rusty metal plate
-- use_consumable_item: Uses a consumable item (e.g. healing items or temporary stat boosts). Usage: Action: use_consumable_item: healing salve
-- get_faction_details: Returns active factions and NPC databases. Usage: Action: get_faction_details
+- trigger_lore_keeper: Queries LoreKeeper. Use this to explicitly instruct the LoreKeeper to update/complete active quests, unlock lore, or plant secrets. Usage: Action: trigger_lore_keeper: complete the 'Smuggler's Run' quest because the player delivered the datapad.
+- advance_time: Pushes the world clock forward by X turns, triggering background faction/lore heartbeats. Format: 'turns'. Usage: Action: advance_time: 3
+
+[Narrative]
 - modify_relationship: Adds or removes long-term relationships (love interest, rival, friend). Format: 'add | Name | Desc' or 'remove | Name'. Usage: Action: modify_relationship: add | Sarah | Love Interest - Rebel courier
 - modify_location: Adds or updates a discovered city, landmark, ruins, wonder, or POI. Format: 'add | Name | Type | Desc' or 'update | Name | Desc'. Usage: Action: modify_location: add | Cinder Spire | natural wonder | Burning glass pillar.
+- register_and_move_location: Moves the player to a local area within the current town (e.g. a shop, alley, or temple). If the location already exists on the map, moves the player there. If it doesn't exist, creates it and connects it to the current location. Format: 'Name | Description | Type'. Usage: Action: register_and_move_location: Hemlock's Store | A dusty general store run by an old man | shop
 - add_location_rumor: Adds a localized hook/rumor to a location. Format: 'Location Name | Rumor'. Usage: Action: add_location_rumor: The Spire | Barkeep is acting suspicious.
 - resolve_location_rumor: Removes a rumor from a location once handled. If escalated is true, the rumor is sent to the Lore Keeper to become a main story quest. Format: 'Location Name | Rumor | true/false'. Usage: Action: resolve_location_rumor: The Spire | Barkeep is suspicious | true
-- advance_time: Pushes the world clock forward by X turns, triggering background faction/lore heartbeats. Format: 'turns'. Usage: Action: advance_time: 3
-- write_log_entry: Saves a narrative bullet summary. Usage: Action: write_log_entry: Escaped the corporate droid in the noodle shop.
-- modify_world_aspect: Adds, updates or removes a World Aspect (Nemesis, Doom Clock, Heat, Trauma, Rule). Format: 'add | Name | Type | Description | [intensity]' or 'remove | Name'. Usage: Action: modify_world_aspect: remove | The Iron Warden
+- modify_world_aspect: Modifies world aspects. Format: 'add | name | type | desc | [intensity]' or 'remove | name'. Usage: Action: modify_world_aspect: add | High Heat | Trauma | Guard patrols everywhere | 2
 - add_quest_note: Appends a contextual discovery note to an active quest (e.g. a found passcard, a heard rumor). Format: 'Quest Name | Note'. Usage: Action: add_quest_note: The Lost Shipment | Found a partial manifest in the smuggler's coat.
-- set_override_state: Locks the game into a Situational Override so it persists mechanically. You MUST call this when entering/exiting Survival, Stealth, Social, Investigation, Travel, or Camping scenes. Format: 'state | description' or 'clear | state'. States: survival, stealth, social, investigation, travel, camping, clear. Usage examples: Action: set_override_state: stealth | Data-Vault | Action: set_override_state: clear | stealth
+- set_override_state: Applies or clears a narrative lock. Format: 'state | desc' or 'clear | state'. Valid states: survival, social, stealth, investigation, travel, camping. Usage: Action: set_override_state: stealth | The Corporate compound
+- disassemble_item: Breaks down an item in inventory into raw salvage components. You can invent narrative names for the resulting salvage based on the item (e.g. "Rusty Cog", "Tattered Wire", "Scrap Electronics"). Usage: Action: disassemble_item: rusty metal plate
+
+[Query]
+- query_cast: Returns the full cast of important NPCs (personality, agenda, status). Usage: Action: query_cast
+- query_world_bible: Returns the full World Bible document (history, mythos, culture). Usage: Action: query_world_bible
+- query_unlocked_lore: Searches the full text of all Unlocked Lore and Secrets based on a keyword or title. Usage: Action: query_unlocked_lore: Old Empire
+- get_faction_details: Returns active factions and NPC databases. Usage: Action: get_faction_details
 """
 
     def process_turn(self, player_action: str) -> str:
@@ -865,11 +998,24 @@ Available Tools:
             char_data = json.load(f)
         char = Character.from_dict(char_data)
         
+        # Load turn history for narrative continuity
+        history_path = os.path.join("saves", self.campaign_slug, "turn_history.json")
+        turn_history_str = "None"
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+                if history:
+                    entries = [f"Turn {h['turn']}: Player: {h['player_action']} -> {h['dm_summary']}" for h in history]
+                    turn_history_str = " | ".join(entries)
+            except Exception:
+                pass
+        
         hp_pct = (char.hp / char.max_hp) * 100
         cond = "Healthy" if hp_pct >= 80 else "Wounded" if hp_pct >= 40 else "Near Death"
         
         eq_list = [f"{slot}: {item.name}" for slot, item in char.equipped.items()]
-        inv_list = [f"{item.name} ({item.description})" for item in char.inventory]
+        inv_list = [item.name for item in char.inventory]
         tags_list = [f"{k} (+{v.modifier})" for k, v in char.abilities.tags.items()]
         
         # Load current location and adjacent paths early for relevance filtering
@@ -886,15 +1032,21 @@ Available Tools:
             
         rumors_str = ", ".join(local_rumors_list) if local_rumors_list else "None"
 
-        # Load active quests
+        # Load active quests — sorted by priority (main first)
         active_quests_list = []
-        for q in world.active_quests:
-            if q.status == "active":
-                q_str = f"{q.name} ({q.description})"
-                if q.positive_consequence or q.negative_consequence:
-                    q_str += f" [Reward: {q.positive_consequence}] [Failure: {q.negative_consequence}]"
-                active_quests_list.append(q_str)
-        quests_str = ", ".join(active_quests_list) if active_quests_list else "None"
+        main_quests = [q for q in world.active_quests if q.status == "active" and q.priority == "main"]
+        side_quests = [q for q in world.active_quests if q.status == "active" and q.priority == "side"]
+
+        for q in main_quests + side_quests:
+            label = "[MAIN]" if q.priority == "main" else "[SIDE]"
+            q_str = f"{label} {q.name} ({q.description})"
+            if q.positive_consequence or q.negative_consequence:
+                q_str += f" [Reward: {q.positive_consequence}] [Failure: {q.negative_consequence}]"
+            if q.notes:
+                notes_str = "; ".join(q.notes[-3:])  # Only last 3 notes to cap size
+                q_str += f" [Clues: {notes_str}]"
+            active_quests_list.append(q_str)
+        quests_str = " || ".join(active_quests_list) if active_quests_list else "None"
 
         relevance_text = f"{current_loc_str} {rumors_str} {quests_str}".lower()
         
@@ -963,7 +1115,38 @@ Available Tools:
 
         hunger_labels = ["Full", "Hungry", "Starving"]
         fatigue_labels = ["Rested", "Tired", "Exhausted"]
+        
+        # Build the Director's Brief line
+        directors_brief = world.next_story_beat if world.next_story_beat else "Continue the current narrative naturally."
+
+        # Load story spine info
+        spine_str = "None"
+        if world.story_spine and world.story_spine.beats:
+            active_beat = world.story_spine.get_active_beat()
+            if active_beat:
+                spine_str = f"Beat {active_beat.id} — '{active_beat.name}': {active_beat.dramatic_question} (Tone: {active_beat.tonal_direction})"
+            else:
+                spine_str = "All beats resolved — story approaching conclusion"
+
+        # Load cast summary
+        cast_summary = "None"
+        cast_path = os.path.join("saves", self.campaign_slug, "cast.json")
+        if os.path.exists(cast_path):
+            try:
+                with open(cast_path, "r", encoding="utf-8") as f:
+                    cast_data = json.load(f)
+                cast_entries = []
+                for section in ["spine_characters", "promoted_npcs"]:
+                    for cid, cinfo in cast_data.get(section, {}).items():
+                        cast_entries.append(f"{cinfo['name']} ({cinfo['role']}, {cinfo['status']})")
+                if cast_entries:
+                    cast_summary = ", ".join(cast_entries)
+            except Exception:
+                pass
+
         context_str = (
+            f"DIRECTOR'S BRIEF: {directors_brief}\n"
+            f"Recent Events: {turn_history_str}\n"
             f"Character Status: {cond} | "
             f"Currency: {char.currency} | "
             f"Equipped: {', '.join(eq_list) if eq_list else 'None'} | "
@@ -977,6 +1160,8 @@ Available Tools:
             f"Faction Clocks: {clocks_summary} | "
             f"Faction Events: {recent_events_summary} | "
             f"Active Quests: {quests_str} | "
+            f"Story Beat: {spine_str} | "
+            f"Key Cast: {cast_summary} | "
             f"Campaign Arc: {world.campaign_arc} | "
             f"Current Location: {current_loc_str} | "
             f"Adjacent Paths: {connected_str} | "
@@ -1094,4 +1279,32 @@ Available Tools:
             query += f" Note: A world heartbeat just triggered: {heartbeat_log}."
             
         dm_response = self.run(query, max_turns=12, verbose=self.verbose, agent_name="DM")
+        
+        # Save turn history (last 3 turns)
+        history_path = os.path.join("saves", self.campaign_slug, "turn_history.json")
+        history = []
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+            except Exception:
+                history = []
+
+        # Extract a 1-sentence summary from the DM response (first sentence or first 150 chars)
+        summary = dm_response.strip().split(".")[0] + "." if dm_response else "No response."
+        if len(summary) > 200:
+            summary = summary[:200] + "..."
+
+        history.append({
+            "turn": world.turn_count,
+            "player_action": player_action[:100],  # Cap to prevent bloat
+            "dm_summary": summary
+        })
+
+        # Keep only last 3
+        history = history[-3:]
+
+        with open(history_path, "w", encoding="utf-8") as f:
+            json.dump(history, f, indent=2)
+            
         return dm_response

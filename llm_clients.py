@@ -122,6 +122,14 @@ class OpenAIClient(LLMClient):
                 temperature=temp,  # Zero temperature for deterministic parsing unless specified
                 stop=["PAUSE"]
             )
+            
+            if getattr(response, "choices", None) is None:
+                # If the API returns a response without choices (e.g. some local servers on error)
+                raise RuntimeError(f"API returned no choices. Raw response: {response}")
+                
+            if len(response.choices) == 0:
+                raise RuntimeError("API returned an empty choices list.")
+                
             return response.choices[0].message.content or ""
         except Exception as e:
             raise RuntimeError(f"Error calling OpenAI-compatible API: {e}")

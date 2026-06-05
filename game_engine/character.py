@@ -8,6 +8,10 @@ class Character:
     name: str
     backstory: str = ""
     appearance: str = ""
+    childhood_event: str = ""        # NEW — Defining childhood moment
+    past_life: str = ""              # NEW — Pre-adventure occupation
+    fear: str = ""                   # NEW — Concrete scenario + emotional wound
+    sentimental_item_story: str = "" # NEW — Why the carried item matters
     abilities: AbilitySet = field(default_factory=AbilitySet)
     hp: int = 20
     max_hp: int = 20
@@ -136,6 +140,10 @@ class Character:
             "name": self.name,
             "backstory": self.backstory,
             "appearance": self.appearance,
+            "childhood_event": self.childhood_event,
+            "past_life": self.past_life,
+            "fear": self.fear,
+            "sentimental_item_story": self.sentimental_item_story,
             "abilities": self.abilities.to_dict(),
             "hp": self.hp,
             "max_hp": self.max_hp,
@@ -158,6 +166,10 @@ class Character:
             name=data.get("name", "Unnamed Hero"),
             backstory=data.get("backstory", ""),
             appearance=data.get("appearance", ""),
+            childhood_event=data.get("childhood_event", ""),
+            past_life=data.get("past_life", ""),
+            fear=data.get("fear", ""),
+            sentimental_item_story=data.get("sentimental_item_story", ""),
             abilities=AbilitySet.from_dict(data.get("abilities", {})),
             hp=data.get("hp", 20),
             max_hp=data.get("max_hp", 20),

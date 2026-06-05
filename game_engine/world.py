@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from game_engine.ability_system import AbilityTag
 
 @dataclass
@@ -11,6 +11,7 @@ class Quest:
     positive_consequence: str = ""
     negative_consequence: str = ""
     notes: List[str] = field(default_factory=list)
+    priority: str = "side"  # "main" or "side"
 
     def to_dict(self) -> dict:
         return {
@@ -20,7 +21,8 @@ class Quest:
             "status": self.status,
             "positive_consequence": self.positive_consequence,
             "negative_consequence": self.negative_consequence,
-            "notes": self.notes
+            "notes": self.notes,
+            "priority": self.priority
         }
 
     @classmethod
@@ -32,7 +34,8 @@ class Quest:
             status=data.get("status", "active"),
             positive_consequence=data.get("positive_consequence", ""),
             negative_consequence=data.get("negative_consequence", ""),
-            notes=data.get("notes", [])
+            notes=data.get("notes", []),
+            priority=data.get("priority", "side")
         )
 
 @dataclass
@@ -102,9 +105,91 @@ class WorldAspect:
             intensity=data.get("intensity", 1)
         )
 
+
+@dataclass
+class StoryBeat:
+    id: int                          # 1-5
+    name: str                        # "The Hook", "The Deepening", etc.
+    dramatic_question: str           # e.g., "What happened to your mentor?"
+    tonal_direction: str             # e.g., "Mystery and urgency"
+    status: str = "pending"          # "pending", "active", "resolved"
+    resolution_notes: str = ""       # Filled by Lore Keeper when resolved
+    pressure_mechanism: str = ""     # What escalates if player stalls
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "dramatic_question": self.dramatic_question,
+            "tonal_direction": self.tonal_direction,
+            "status": self.status,
+            "resolution_notes": self.resolution_notes,
+            "pressure_mechanism": self.pressure_mechanism
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "StoryBeat":
+        return cls(
+            id=data.get("id", 0),
+            name=data.get("name", ""),
+            dramatic_question=data.get("dramatic_question", ""),
+            tonal_direction=data.get("tonal_direction", ""),
+            status=data.get("status", "pending"),
+            resolution_notes=data.get("resolution_notes", ""),
+            pressure_mechanism=data.get("pressure_mechanism", "")
+        )
+
+
+@dataclass
+class StorySpine:
+    theme: str = ""
+    beats: List[StoryBeat] = field(default_factory=list)
+    current_beat: int = 1
+
+    def get_active_beat(self) -> Optional[StoryBeat]:
+        """Returns the currently active StoryBeat, or None."""
+        for beat in self.beats:
+            if beat.status == "active":
+                return beat
+        return None
+
+    def advance_beat(self, resolution_notes: str) -> Optional[StoryBeat]:
+        """Resolves the current active beat and activates the next one. Returns the newly active beat or None if the spine is complete."""
+        active = self.get_active_beat()
+        if active:
+            active.status = "resolved"
+            active.resolution_notes = resolution_notes
+
+        # Find the next pending beat
+        for beat in self.beats:
+            if beat.status == "pending":
+                beat.status = "active"
+                self.current_beat = beat.id
+                return beat
+        return None  # Story spine complete
+
+    def to_dict(self) -> dict:
+        return {
+            "theme": self.theme,
+            "beats": [b.to_dict() for b in self.beats],
+            "current_beat": self.current_beat
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "StorySpine":
+        if not data:
+            return cls()
+        return cls(
+            theme=data.get("theme", ""),
+            beats=[StoryBeat.from_dict(bd) for bd in data.get("beats", [])],
+            current_beat=data.get("current_beat", 1)
+        )
+
+
 @dataclass
 class WorldState:
     setting_genre: str = "Fantasy"
+    story_spine: StorySpine = field(default_factory=StorySpine)
     setting_description: str = ""
     current_location: str = "Start"
     time_of_day: str = "Morning"  # Morning, Noon, Afternoon, Dusk, Night, Midnight
@@ -123,6 +208,7 @@ class WorldState:
     weather: str = ""        # Descriptive weather string, e.g. "Heavy Rain"
     hunger: int = 0           # 0=Full, 1=Hungry, 2=Starving
     fatigue: int = 0          # 0=Rested, 1=Tired, 2=Exhausted
+    next_story_beat: str = ""     # Director's brief: specific narrative directive for the DM
     # --- Situational Override States ---
     # These are set/cleared mechanically by DM tools so overrides cannot be forgotten
     survival_situation: str = ""   # Non-empty = Survival Override active; describes the threat
@@ -158,12 +244,12 @@ class WorldState:
         clean_name = name.strip().lower()
         self.environmental_modifiers = [t for t in self.environmental_modifiers if t.name != clean_name]
 
-    def add_quest(self, quest_id: str, name: str, description: str, pos_conseq: str = "", neg_conseq: str = "") -> None:
+    def add_quest(self, quest_id: str, name: str, description: str, pos_conseq: str = "", neg_conseq: str = "", priority: str = "side") -> None:
         # Check if already exists
         for q in self.active_quests:
             if q.id == quest_id:
                 return
-        self.active_quests.append(Quest(id=quest_id, name=name, description=description, positive_consequence=pos_conseq, negative_consequence=neg_conseq))
+        self.active_quests.append(Quest(id=quest_id, name=name, description=description, positive_consequence=pos_conseq, negative_consequence=neg_conseq, priority=priority))
 
     def update_quest_status(self, quest_id: str, status: str) -> bool:
         for q in self.active_quests:
@@ -197,6 +283,7 @@ class WorldState:
     def to_dict(self) -> dict:
         return {
             "setting_genre": self.setting_genre,
+            "story_spine": self.story_spine.to_dict(),
             "setting_description": self.setting_description,
             "current_location": self.current_location,
             "time_of_day": self.time_of_day,
@@ -228,7 +315,8 @@ class WorldState:
             "stealth_mission": self.stealth_mission,
             "investigation_focus": self.investigation_focus,
             "travel_journey": self.travel_journey,
-            "is_camping": self.is_camping
+            "is_camping": self.is_camping,
+            "next_story_beat": self.next_story_beat
         }
 
     @classmethod
@@ -250,6 +338,7 @@ class WorldState:
             
         return cls(
             setting_genre=data.get("setting_genre", "Fantasy"),
+            story_spine=StorySpine.from_dict(data.get("story_spine", {})),
             setting_description=data.get("setting_description", ""),
             current_location=data.get("current_location", "Start"),
             time_of_day=data.get("time_of_day", "Morning"),
@@ -273,5 +362,6 @@ class WorldState:
             stealth_mission=data.get("stealth_mission", ""),
             investigation_focus=data.get("investigation_focus", ""),
             travel_journey=data.get("travel_journey", ""),
-            is_camping=data.get("is_camping", False)
+            is_camping=data.get("is_camping", False),
+            next_story_beat=data.get("next_story_beat", "")
         )

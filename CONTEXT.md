@@ -42,8 +42,18 @@ Max HP is not purely static. It grows in two ways:
 1. **Physical Tag Progression**: Leveling up physical or combat tags (e.g., `athletics`, `combat`, `fortitude`) permanently grants a small boost (e.g., +5) to Max HP.
 2. **Artifact Upgrades**: Max HP can be upgraded by finding and consuming rare items, cybernetics, or magical blessings in the world.
 
+### Bodily Needs (Hunger & Fatigue)
+Mechanical states tracked on a scale from 0 to 2 (0 = Fine, 1 = Mild, 2 = Severe) by the World Keeper subagent. If left unchecked, high hunger or fatigue can impose negative environmental modifiers on the player's ability tags.
+
+### Recovery (Healing)
+Character HP and bodily needs are recovered through two primary methods:
+1. **Camping/Sleeping**: Initiating a rest resets Fatigue to 0, but increases Hunger by 1 (to represent burned calories). It naturally heals a small amount of HP (e.g., +5 HP). It does not fully restore health.
+2. **Consumables**: Using medical supplies, potions, or rations provides immediate HP recovery. However, consuming these items outside of a safe Camping environment reduces their healing effectiveness by half.
+
 ### Hidden Stats
 The design philosophy where all character mechanics (ability tags, modifiers, dice rolls, difficulty classes) are invisible to the player during normal gameplay. The player experiences outcomes through narrative description only. Stats can be inspected via saved JSON files or explicit Out-of-Character requests.
+- **Item Descriptions**: Because stats are hidden, item descriptions act as the primary interface for understanding an item's capabilities. Descriptions are diegetically generated (e.g., "A heavy iron broadsword" instead of "Damage +2"). Common simple items have basic descriptions, while special items feature detailed notes on their appearance and known capabilities.
+- **Wound States**: Character HP is hidden. Instead of numbers, low HP (<75%, <50%, or <25%) is conveyed purely through diegetic flavor text (e.g., bruised, bleeding, limping). These descriptions act as warnings but do not impose hidden mechanical penalties on ability checks.
 
 ### Difficulty Class (DC)
 A numeric threshold that an ability check must meet or exceed to succeed. DCs are set contextually by the DM or subagents based on the situation (e.g., rusty lock = DC 8, master-forged lock = DC 20).
@@ -94,10 +104,10 @@ A persistent geographical registry of major cities, natural wonders, dungeons, o
 Items in the player's inventory that possess a finite number of charges (e.g., Healing Salves, Energy Cells). Using these items provides a direct mechanical benefit or status change, decrements the charge count, and automatically destroys the item when depleted.
 
 ### Salvaging
-The mechanical action of breaking down complex or unwanted items into fundamental raw materials (e.g., Junk Metal, Scrap Electronics, Scrap Leather, Scrap Cloth, Copper Wire). Salvaging is used to manage inventory space and gather components for future use.
+A narrative action managed by the DM agent to break down complex or unwanted items into fundamental raw materials (e.g., Rusty Cogs, Tattered Wire, Scrap Electronics). The DM freely invents salvage names based on the setting and the item being dismantled. Used to manage inventory space and gather components for future use.
 
 ### Crafting
-The mechanical action by which the DM agent permanently deducts specified raw materials from the player's inventory to generate a newly assembled item. Crafting requests must make logical sense within the fiction and setting.
+A freeform, narrative action by which the DM agent deducts logical raw materials from the player's inventory to generate a newly assembled item. There are no strict recipes; the DM uses its judgment to determine if the player has the right combination of random salvage to build the requested item, enforcing an ability check to determine success.
 
 ### Faction Projects
 Long-term, background goals pursued autonomously by factions (e.g., "Building a checkpoint", "Researching a cure"). Tracked by the Faction Weaver via a mechanical countdown (turns/heartbeats). When a project completes, it fires a narrative event and can permanently alter the World State by introducing new Environmental Modifiers.
@@ -112,11 +122,41 @@ Mechanical locks applied to the DM's ReAct loop to prevent the LLM from "forgett
 - **Travel**: Used during long journeys between major nodes. Locks choices to navigating the road, foraging, and dealing with hazards.
 - **Camping**: Used when resting. Locks choices to camp activities (eating, sleeping) and enforces Hunger/Fatigue updates.
 
+### Story Spine
+A 5-beat adaptive dramatic structure generated at campaign start that gives the campaign a satisfying narrative arc. Each beat defines a dramatic question and tonal direction, not a scripted scene. The spine is adaptive: dramatic functions are fixed (there will always be a Betrayal, a Crisis, a Reckoning), but the specific events and characters involved mutate based on player choices. Pressure mechanisms (World Aspects, faction clocks, Nemesis) pull wandering players back to the story.
+
+### Story Beat
+One of 5 dramatic turning points in the Story Spine:
+1. **The Hook**: Personal inciting incident — pulls the player in through backstory intersection with a world event.
+2. **The Deepening**: The problem is bigger than it seemed — introduces the real antagonist or true scope.
+3. **The Betrayal / Reversal**: Something the player trusted flips — an ally betrays, a truth is revealed, a plan fails.
+4. **The Crisis**: The player's concrete fear (from character creation) is directly tested. The lowest point.
+5. **The Reckoning**: Final confrontation — the dramatic question is answered and the player's arc resolves.
+
+Each beat has a status (pending, active, resolved) tracked by the Lore Keeper.
+
+### Spine Characters
+A small set of 2-3 important NPCs generated at campaign start with medium detail (personality, hidden agenda, dramatic function, relationship to the player). Each maps to a dramatic role:
+- **The Anchor**: Emotional tie to Beat 1 — connected to the player's childhood or past life.
+- **The Catalyst**: Drives Beats 2-3 — an ally with hidden knowledge or a hidden agenda.
+- **The Adversary**: Opposes the player across multiple beats — a persistent, personal rival.
+
+Spine Characters are stored in `cast.json` and are distinct from lightweight faction NPCs.
+
+### NPC Promotion
+The process by which a lightweight NPC (a one-line description in `factions.json`) is upgraded to a fleshed-out character in `cast.json` with personality, hidden agenda, and dramatic function. Promotion triggers include: 3+ player interactions, being added as a Key Relationship, or the Lore Keeper needing to fill a vacated dramatic role.
+
+### Cast
+The dedicated registry (`cast.json`) of all important NPCs — both Spine Characters and Promoted NPCs. Stored separately from `factions.json` to keep narrative identity distinct from political affiliation. Referenced by both the DM and Lore Keeper for consistent characterization.
+
 ## Technical Details
 - Built in Python.
 - Uses LLM APIs (Gemini, OpenAI, Anthropic).
 - Data is stored in local `.json` files and `.md` files in the `saves/<campaign_slug>/` directory.
 - Relies on **questionary** for a rich, interactive Terminal User Interface (TUI) allowing for WASD/Arrow key navigation.
+
+### AI-Enhanced Custom Input
+An interactive UI feature where the player can submit a draft custom action and request the LLM to enhance it. The engine passes the player's draft and the current scene context to the LLM, which returns 4 polished, highly-descriptive alternatives. The player can select one of the 4 enhanced options, keep their original draft, or cancel to write a new one. This ensures narrative quality without stripping player agency.
 
 ### Inciting Incident
 A special type of Narrative Thread granted at the absolute start of the game. It possesses explicit positive and negative consequences to give the player immediate stakes and direction. This incident kicks off the primary Campaign Arc.
@@ -132,3 +172,12 @@ Small, location-specific hooks or points of interest attached to specific Discov
 
 ### World Bible
 A comprehensive, static lore document generated at the start of a campaign. It contains the overarching history, pantheons, mythos, and primary cultures of the world. Because it is too large to inject into memory on every turn, a short summary is kept in the World State, while the DM Agent can actively query the full document when players ask deep lore questions.
+
+### Director's Brief (Next Story Beat)
+A specific, actionable 1-2 sentence narrative directive generated by the Lore Keeper during each heartbeat cycle. Injected at the top of the DM's context block to tell it exactly what the next narrative moment should focus on (e.g., "Have an NPC reveal the smuggler's betrayal"). This is the DM's primary creative compass.
+
+### Quest Priority
+Quests are marked as either `main` (primary story arc) or `side` (secondary). The Lore Keeper assigns priority by default (inciting incident = main). The player can override priority via the OOC `focus quest` command to shift the DM's attention to a different quest line.
+
+### Turn History
+A rolling record of the last 3 player turns (player action + DM response summary), stored in `saves/{campaign}/turn_history.json`. Injected into the DM's context block to provide minimal narrative continuity between turns, since the DM agent has no persistent conversation memory.

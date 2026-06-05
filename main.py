@@ -7,7 +7,7 @@ import textwrap
 import questionary
 from questionary import Style
 from halo import Halo
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 # Load environment variables
 try:
@@ -68,6 +68,8 @@ def display_menu():
 def setup_llm(provider: str, model_name: str, base_url: str):
     """Initializes LLM client based on selection."""
     if provider == "gemini":
+        if model_name == "gemini-3.1-pro":
+            model_name = "gemini-3.1-pro-preview"
         return GeminiClient(model_name=model_name)
     elif provider == "openai":
         return OpenAIClient(model_name=model_name, base_url=base_url)
@@ -76,21 +78,108 @@ def setup_llm(provider: str, model_name: str, base_url: str):
     else:
         return MockClient(model_name=model_name)
 
+def get_enhanced_custom_input(llm_client, prompt_label: str, context_text: str, style=None) -> Optional[str]:
+    """Prompt the player for a custom draft, then optionally enhance it with 4 AI-generated alternatives.
+    
+    Returns the final chosen string, or None if the player cancels.
+    """
+    if style is None:
+        style = custom_style
+
+    # Step 1: Get draft from the player
+    draft = questionary.text(prompt_label, style=style).ask()
+    if not draft:
+        return None
+
+    # Step 2: Ask what to do with it
+    post_choice = questionary.select(
+        "What would you like to do with your draft?",
+        choices=[
+            "Submit as-is",
+            "Enhance with AI (get 4 rewritten options)",
+            "Cancel"
+        ],
+        style=style
+    ).ask()
+
+    if not post_choice or post_choice == "Cancel":
+        return None
+    if post_choice == "Submit as-is":
+        return draft
+
+    # Step 3: Call LLM to generate 4 enhanced versions
+    enhance_prompt = f"""You are a creative writing assistant for a text-based RPG.
+
+Current scene context:
+{context_text}
+
+The player has written this rough draft action or response:
+"{draft}"
+
+Rewrite this draft into exactly 4 distinct, highly descriptive, and immersive variations that fit the scene context naturally.
+Each variation should preserve the player's core intent but elevate the language, add vivid detail, and feel authentic to the world's tone.
+Output ONLY a valid JSON list of exactly 4 strings. No extra text, no numbering outside the JSON.
+Example format: ["Variation one...", "Variation two...", "Variation three...", "Variation four..."]"""
+
+    import json as _json
+    with Halo(text='Enhancing your action...', spinner='dots', color='cyan'):
+        try:
+            raw = llm_client.generate(enhance_prompt, temperature=0.8)
+            # Strip markdown code fences if present
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            enhanced_options = _json.loads(raw.strip())
+            if not isinstance(enhanced_options, list) or len(enhanced_options) == 0:
+                raise ValueError("Empty list returned")
+        except Exception:
+            print_styled("[AI Enhance failed — submitting your original draft.]", COLOR_SYSTEM)
+            return draft
+
+    # Step 4: Let player choose from enhanced options
+    keep_label = f'Keep my original: "{draft[:60]}{"..." if len(draft) > 60 else ""}"'
+    ai_choices = [opt[:120] for opt in enhanced_options[:4]]
+    final_choices = ai_choices + [keep_label, "Write a new draft"]
+
+    final_choice = questionary.select(
+        "Choose an enhanced version or keep your original:",
+        choices=final_choices,
+        style=style
+    ).ask()
+
+    if not final_choice:
+        return draft
+    if final_choice == keep_label:
+        return draft
+    if final_choice == "Write a new draft":
+        return get_enhanced_custom_input(llm_client, prompt_label, context_text, style)
+
+    # Return the full (untruncated) version of the chosen option
+    idx = ai_choices.index(final_choice)
+    return enhanced_options[idx]
+
 def generate_setting_pitches(llm_client) -> List[str]:
     import random
     seed = random.randint(1, 10000)
     prompt = f"""You are a creative world builder.
 Generate 4 distinct setting pitches for an RPG campaign.
-Ensure at least 3 of the pitches are grounded in very traditional, classic tropes (e.g., standard High Fantasy, standard Sci-Fi, standard Cyberpunk). 
+Ensure at least 3 of the pitches are grounded in traditional, classic RPG tropes (e.g., Fantasy, Sci-Fi, Cyberpunk, Horror, Historical). You MUST randomize the specific sub-genres each time (e.g., instead of always 'High Fantasy', try 'Dark Fantasy', 'Low Fantasy', 'Urban Fantasy', or 'Sword & Sorcery').
 The 4th pitch can be a totally wild and unique blend of genres (e.g. post-apocalyptic weird west steampunk).
 Each pitch should be a single paragraph including a title and a brief hook.
 
 Use the unique random seed {seed} to guarantee that these 4 pitches are completely different from any previous generations you've made. Give them unique names and unique conflicts.
 
-Format the output as:
-1. [Setting Name] (Genres) - Hook description
-2. ...
-Make each pitch 2 sentences max. Format as a numbered list."""
+Format the output exactly as:
+1. **[Setting Name]** (Genres) - Hook description
+
+2. **[Setting Name]** (Genres) - Hook description
+
+3. **[Setting Name]** (Genres) - Hook description
+
+4. **[Setting Name]** (Genres) - Hook description
+Make each pitch 2 sentences max. Separate each option with a blank line for readability."""
     
     with Halo(text='Generating worlds...', spinner='dots', color='cyan'):
         response = llm_client.generate(prompt)
@@ -113,14 +202,31 @@ Make each pitch 2 sentences max. Format as a numbered list."""
 
 def run_character_creation(llm_client, setting_pitch: str):
     print_styled("\n--- Character Creation ---", COLOR_TITLE)
-    name = questionary.text("What is your character's name? ", default="Adventurer", style=custom_style).ask()
+    import random
+    pitch_lower = setting_pitch.lower()
+    if "cyber" in pitch_lower or "neon" in pitch_lower:
+        names = ["Jax", "Sera", "Nova", "Kael", "Rye", "Vex", "Echo", "Jinx", "Cipher", "Tess"]
+    elif "apoc" in pitch_lower or "waste" in pitch_lower or "dust" in pitch_lower or "ash" in pitch_lower:
+        names = ["Thorne", "Dirk", "Rusty", "Brick", "Scrap", "Ash", "Flint", "Roach", "Junk", "Rex"]
+    elif "fantasy" in pitch_lower or "magic" in pitch_lower or "sword" in pitch_lower:
+        names = ["Elara", "Kaelen", "Lyra", "Finn", "Gideon", "Aria", "Rowan", "Sylas", "Maeve", "Arthur"]
+    elif "space" in pitch_lower or "sci-fi" in pitch_lower or "star" in pitch_lower:
+        names = ["Orion", "Lyra", "Cora", "Dax", "Zane", "Nova", "Cassian", "Elara", "Voss", "Zara"]
+    else:
+        names = ["Ron", "Alex", "Sam", "Charlie", "Jordan", "Taylor", "Casey", "Morgan", "Riley", "Avery"]
+        
+    random_name = random.choice(names)
+    
+    name = questionary.text("What is your character's name? ", default=random_name, style=custom_style).ask()
     if name is None: return None
     if not name:
-        name = "Adventurer"
+        name = random_name
 
     questions = [
+        "What is your race, age, gender, and defining physical appearance? (Ensure age is appropriate for an adventurer of that race)",
+        "What was the most defining event of your early childhood?",
         "What did you do before the world changed or your adventure began?",
-        "What is your greatest fear or weakness?",
+        "What is the one situation, person, or force your character would do anything to avoid facing again?",
         "What is the single object you carry with you at all times and why?"
     ]
     
@@ -129,12 +235,40 @@ def run_character_creation(llm_client, setting_pitch: str):
     for i, q in enumerate(questions):
         print_styled(f"\nQuestion {i+1}: {q}", COLOR_TITLE)
         
+        extra_inst = ""
+        if i == 0:
+            extra_inst = "Focus on providing a diverse array of physical builds, biological races, genders, and ages. The options should feel like distinct racial or cultural backgrounds, explicitly stating race, age, and gender."
+        elif i == 1:
+            extra_inst = "Focus on radically different formative narrative events (e.g. a tragic loss, a privileged upbringing, street survival, or a secluded apprenticeship). Do NOT focus on job classes here."
+        elif i == 2:
+            extra_inst = "The 4 options MUST be distinct and evocative of traditional RPG archetypes or classes (e.g., the frontline warrior, the rogue/scoundrel, the magic-user/tech-wiz, the ranger/scout), adapted to fit the specific setting genre."
+        elif i == 3:
+            extra_inst = "Generate fears that combine a specific triggerable scenario with a deep personal reason. Each fear must name a concrete external threat AND the emotional wound behind it. (e.g., 'Being trapped underground — they were buried alive during a mine collapse and still hear the rocks shifting in their nightmares.' NOT vague concepts like 'fear of failure' or 'fear of the unknown')."
+        elif i == 4:
+            extra_inst = "The object MUST be a simple, practical, and useful physical item (e.g., a sturdy crowbar, a specific tool, a reliable weapon, a medical kit) that also has a sentimental or personal reason for being carried. Do NOT generate vague, purely symbolic trinkets or abstract magic concepts."
+            
+        previous_backstory = ""
+        if answers:
+            previous_backstory = "The player has already established the following about their character:\n"
+            for ans in answers:
+                previous_backstory += f"{ans}\n"
+            previous_backstory += "\nEnsure these new options logically align with and build upon this established backstory!"
+            
         prompt = f"""For an RPG character named '{name}' in the setting: '{setting_pitch}'.
-Generate 3 short, flavor-rich example answers for the question: '{q}'.
-Format as:
-1. Option A
-2. Option B
-3. Option C"""
+{previous_backstory}
+Generate 4 short, flavor-rich example answers for the question: '{q}'.
+{extra_inst}
+CRITICAL: You MUST seamlessly weave the underlying mechanical skills or themes into the narrative text and **bold** them so the player knows what Ability Tags they are choosing. (e.g., "...I survived using raw **stamina** and my knowledge of **animal handling**...").
+Output ONLY the numbered list. Do NOT output any conversational filler like "Here are 4 options...".
+Format exactly as:
+1. **[Short, Evocative Title]** - [Your narrative text...]
+
+2. **[Short, Evocative Title]** - [Your narrative text...]
+
+3. **[Short, Evocative Title]** - [Your narrative text...]
+
+4. **[Short, Evocative Title]** - [Your narrative text...]
+Separate each option with a blank line for readability."""
         
         with Halo(text='Consulting the DM...', spinner='dots', color='magenta'):
             options_text = llm_client.generate(prompt)
@@ -143,13 +277,21 @@ Format as:
         
         lines = [l.strip() for l in options_text.splitlines() if l.strip() and (l[0].isdigit() or l.startswith("-"))]
         if not lines:
-            lines = ["Option A", "Option B", "Option C"]
+            lines = ["Option A", "Option B", "Option C", "Option D"]
             
-        display_choices = [truncate_choice(l) for l in lines]
+        display_choices = []
+        import re
+        for l in lines:
+            match = re.search(r'\*\*(.*?)\*\*', l)
+            if match:
+                display_choices.append(match.group(1).strip())
+            else:
+                parts = re.split(r'\s+[-–—]\s+', l, maxsplit=1)
+                display_choices.append(truncate_choice(parts[0].strip(), length=50))
         choices = display_choices + ["Custom (Write your own...)", "Cancel Character Creation"]
         
         choice = questionary.select(
-            "Choose an option:",
+            f"Select an option for '{q}':",
             choices=choices,
             style=custom_style
         ).ask()
@@ -157,8 +299,33 @@ Format as:
         if not choice or choice == "Cancel Character Creation":
             return None
         elif choice == "Custom (Write your own...)":
-            ans = questionary.text("Describe in your own words: ", style=custom_style).ask()
-            if not ans: return None
+            char_creation_context = (
+                f"Setting: {setting_pitch}.\n"
+                f"Character name: {name}.\n"
+                f"Question being answered: {q}.\n"
+                + (f"Previous backstory so far:\n{previous_backstory}" if previous_backstory else "")
+            )
+            raw_ans = get_enhanced_custom_input(
+                llm_client,
+                "Describe in your own words: ",
+                char_creation_context
+            )
+            if not raw_ans: return None
+
+            with Halo(text='Moulding your custom backstory...', spinner='dots', color='yellow'):
+                custom_prompt = f"""For an RPG character named '{name}' in the setting: '{setting_pitch}'.
+{previous_backstory}
+The player was asked: '{q}'
+The player provided a custom, rough answer: "{raw_ans}"
+
+Please rewrite and expand the player's custom answer to be highly flavor-rich, immersive, and adapted to fit the specific setting genre.
+CRITICAL: You MUST seamlessly weave underlying mechanical skills or themes into the narrative text and **bold** them so the player knows what Ability Tags they are gaining from this custom backstory. (e.g., "...I survived using raw **stamina** and my knowledge of **animal handling**...").
+Keep the core intent of the player's answer intact.
+Format exactly as:
+**[Short, Evocative Title]** - [Your fleshed out narrative text...]
+Do NOT output any conversational filler."""
+                ans = llm_client.generate(custom_prompt).strip()
+            print_styled(f"\n[DM Expanded]: {ans}\n", COLOR_DM)
         else:
             idx = display_choices.index(choice)
             ans = lines[idx]
@@ -171,22 +338,35 @@ Format as:
 Name: {name}
 Setting: {setting_pitch}
 Backstory details:
-1. Past: {answers[0]}
-2. Fear: {answers[1]}
-3. Item: {answers[2]}
+1. Appearance: {answers[0]}
+2. Childhood: {answers[1]}
+3. Past: {answers[2]}
+4. Fear: {answers[3]}
+5. Item: {answers[4]}
 
-Choose 4-6 appropriate ability tags with starting modifiers (+1 to +3) representing skills or traits.
-Include one combat-related tag, one utility-related tag, and others based on backstory.
-Output ONLY a valid JSON dictionary mapping tag names (lowercase strings) to integer modifiers.
-Do not include any markdown formatting, thoughts, or text.
-Example format:
-{{"combat": 2, "stealth": 3, "hacking": 1, "stamina": 2}}"""
+Generate starting attributes and gear based on the setting and backstory. If the player wrote a custom backstory, thoughtfully extrapolate their implied skills based on context clues.
+For the "description" field of each item, write a diegetic narrative description that implies what the item does without revealing raw numbers. For common simple items, just describe what they do. For special items, be more detailed about what it looks like and what it can do if it is known.
+Output ONLY a valid JSON object matching this exact structure:
+{{
+  "tags": {{"combat": 2, "stealth": 1, "athletics": 2, "survival": 1}},
+  "currency": 100,
+  "weapon": {{"name": "Rusty Scavenger Pipe", "description": "A heavy metal pipe.", "tag_modifiers": {{"combat": 1, "damage": 1}}}},
+  "armor": {{"name": "Thick Leather Coat", "description": "Protects against scrapes.", "tag_modifiers": {{"defense": 1}}}},
+  "food": {{"name": "Travel Rations", "description": "Dried meat and hardtack."}},
+  "camping_gear": {{"name": "Tattered Bedroll", "description": "A simple sleeping bag."}}
+}}
+Do not include any markdown formatting, thoughts, or text."""
 
     with Halo(text='Calculating attributes...', spinner='dots', color='cyan'):
         response = llm_client.generate(analysis_prompt)
     
     # Try to find JSON inside response
     tags = {}
+    weapon_data = None
+    armor_data = None
+    food_data = None
+    camping_data = None
+    currency = 50
     try:
         # Strip potential markdown code blocks
         clean_res = response.strip()
@@ -195,7 +375,19 @@ Example format:
         elif "```" in clean_res:
             clean_res = clean_res.split("```")[1].split("```")[0]
         clean_res = clean_res.strip()
-        tags = json.loads(clean_res)
+        data = json.loads(clean_res)
+        
+        # Support fallback where LLM just returns tags
+        if "tags" in data:
+            tags = data.get("tags", {})
+            weapon_data = data.get("weapon")
+            armor_data = data.get("armor")
+            food_data = data.get("food")
+            camping_data = data.get("camping_gear")
+            currency = data.get("currency", 50)
+        else:
+            tags = data
+            
     except Exception:
         # Fallback tags
         print_styled("Warning: Using default attributes due to generation hiccup.", COLOR_ERROR)
@@ -207,11 +399,11 @@ Example format:
         
     # Also add the starting item to inventory
     from game_engine.item_system import Item
-    starting_item = Item(name="Backstory Trinket", description=answers[2])
+    starting_item = Item(name="Backstory Trinket", description=answers[4])
     
     # Generate appearance from character details
     print_styled("\nDescribing your appearance...", COLOR_SYSTEM)
-    appearance_prompt = f"Based on this character: Name: {name}, Setting: {setting_pitch}, Stats: {tags}, write a highly evocative 3-sentence physical description of what this character looks like."
+    appearance_prompt = f"Based on this character: Name: {name}, Setting: {setting_pitch}, Stats: {tags}, and the player's description: '{answers[0]}', write a highly evocative 3-sentence physical description of what this character looks like."
     
     with Halo(text='Visualizing character...', spinner='dots', color='magenta'):
         appearance_text = llm_client.generate(appearance_prompt).strip()
@@ -221,11 +413,42 @@ Example format:
         
     char = Character(
         name=name,
-        backstory=f"Past: {answers[0]} | Fear: {answers[1]}",
+        backstory=f"Appearance: {answers[0]} | Childhood: {answers[1]} | Past: {answers[2]} | Fear: {answers[3]}",
         appearance=appearance_text,
+        childhood_event=answers[1],
+        past_life=answers[2],
+        fear=answers[3],
+        sentimental_item_story=answers[4],
         abilities=abilities,
+        currency=currency,
         inventory=[starting_item]
     )
+    
+    if weapon_data:
+        w_name = weapon_data.get("name", "Basic Weapon")
+        w_desc = weapon_data.get("description", "")
+        w_mods = weapon_data.get("tag_modifiers", {"combat": 1})
+        weapon = Item(name=w_name, description=w_desc, tag_modifiers=w_mods, slot="weapon")
+        char.inventory.append(weapon)
+        char.equipped["weapon"] = weapon
+        
+    if armor_data:
+        a_name = armor_data.get("name", "Basic Armor")
+        a_desc = armor_data.get("description", "")
+        a_mods = armor_data.get("tag_modifiers", {"defense": 1})
+        armor = Item(name=a_name, description=a_desc, tag_modifiers=a_mods, slot="armor")
+        char.inventory.append(armor)
+        char.equipped["armor"] = armor
+        
+    if food_data:
+        f_name = food_data.get("name", "Rations")
+        f_desc = food_data.get("description", "")
+        char.inventory.append(Item(name=f_name, description=f_desc, consumable=True, charges=1))
+        
+    if camping_data:
+        c_name = camping_data.get("name", "Bedroll")
+        c_desc = camping_data.get("description", "")
+        char.inventory.append(Item(name=c_name, description=c_desc))
     
     return char
 
@@ -255,17 +478,6 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
                 print(f" - {slot.upper()}: {item.name} ({item.description})")
         print_styled("-" * 40, COLOR_OOC)
         
-    elif "inventory" in sub or "items" in sub:
-        with open(char_path, "r", encoding="utf-8") as f:
-            char = Character.from_dict(json.load(f))
-        print_styled(f"\n--- OOC: Inventory ---", COLOR_OOC)
-        print(f"Currency: {char.currency}")
-        if not char.inventory:
-            print("Your pockets are empty.")
-        for item in char.inventory:
-            print(f" - {item.name}: {item.description} (Slot: {item.slot or 'None'})")
-        print_styled("-" * 25, COLOR_OOC)
-        
     elif "quests" in sub:
         with open(world_path, "r", encoding="utf-8") as f:
             world = WorldState.from_dict(json.load(f))
@@ -274,8 +486,32 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
             print("No active quests.")
         for quest in world.active_quests:
             print(f" - [{quest.status.upper()}] {quest.name}: {quest.description}")
-            for note in quest.notes:
-                print(f"     * {note}")
+            
+    elif "focus" in sub:
+        # Let the player set a quest as main priority
+        with open(world_path, "r", encoding="utf-8") as f:
+            world = WorldState.from_dict(json.load(f))
+        active = [q for q in world.active_quests if q.status == "active"]
+        if not active:
+            print("No active quests to focus.")
+        else:
+            quest_names = [q.name for q in active]
+            quest_names.append("Cancel")
+            focus_choice = questionary.select(
+                "Focus which quest?",
+                choices=quest_names,
+                style=custom_style
+            ).ask()
+            if focus_choice and focus_choice != "Cancel":
+                for q in world.active_quests:
+                    if q.name == focus_choice:
+                        q.priority = "main"
+                    else:
+                        if q.priority == "main":
+                            q.priority = "side"
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                print_styled(f"Now focusing: {focus_choice}", COLOR_OOC)
         print_styled("-" * 30, COLOR_OOC)
         
     elif "log" in sub or "history" in sub:
@@ -329,20 +565,27 @@ def extract_choices(text: str) -> List[str]:
         stripped = line.strip()
         if not stripped:
             continue
-        # Check for bullet: "* " or "- "
-        if stripped.startswith(("* ", "- ")):
-            choice_text = stripped[2:].strip()
-        # Check for numbered: e.g. "1. " or "1) " or "10. "
-        elif re.match(r"^\d+[\.\)]\s+", stripped):
-            parts = re.split(r"[\.\)]\s+", stripped, 1)
-            choice_text = parts[1].strip()
-        else:
-            continue
             
-        # Clean markdown bold markers
-        choice_text = choice_text.replace("**", "").strip()
-        if choice_text:
-            choices.append(choice_text)
+        is_choice = False
+        if stripped.startswith(("* ", "- ")):
+            is_choice = True
+        elif re.match(r"^\d+[\.\)]\s+", stripped):
+            is_choice = True
+            
+        if is_choice:
+            match = re.search(r'\*\*(.*?)\*\*', stripped)
+            if match:
+                choices.append(match.group(1).strip())
+            else:
+                choice_text = ""
+                if stripped.startswith(("* ", "- ")):
+                    choice_text = stripped[2:].strip()
+                elif re.match(r"^\d+[\.\)]\s+", stripped):
+                    choice_text = re.split(r"[\.\)]\s+", stripped, 1)[1].strip()
+                    
+                parts = re.split(r'\s+[-–—]\s+', choice_text, maxsplit=1)
+                choices.append(parts[0].strip().replace("**", ""))
+                
     return choices
 
 def truncate_choice(text: str, length: int = 80) -> str:
@@ -524,9 +767,10 @@ def run_travel_mode(llm_client, campaign_slug: str, world: WorldState) -> None:
         print_styled(f"You are at: {current.name} ({current.type.title()})", theme.color_ooc)
         print(f"Description: {current.description}")
         
-        connected_locs = [l for l in world.discovered_locations if l.id in current.connections]
+        # Fast Travel: Allow moving to any previously discovered location
+        other_locs = [l for l in world.discovered_locations if l.id != current.id]
         
-        choices = [f"Travel to: {loc.name}" for loc in connected_locs]
+        choices = [f"Travel to: {loc.name} ({loc.type.title()})" for loc in other_locs]
         choices.append(questionary.Separator())
         choices.append("[Explore Unknown Paths]")
         choices.append("Cancel Travel")
@@ -574,8 +818,9 @@ def run_travel_mode(llm_client, campaign_slug: str, world: WorldState) -> None:
                 print_styled(f"Failed to explore: {e}", COLOR_ERROR)
             continue
             
-        dest_name = choice.replace("Travel to: ", "")
-        dest = next((l for l in connected_locs if l.name == dest_name), None)
+        dest_name_raw = choice.replace("Travel to: ", "")
+        # The name was appended with (Type), so we need to match carefully or just by string
+        dest = next((l for l in other_locs if choice.startswith(f"Travel to: {l.name}")), None)
         if dest:
             world.current_location_id = dest.id
             world.turn_count += 1
@@ -627,9 +872,12 @@ Output the World Bible in detailed Markdown format."""
             SaveManager.save_game(campaign_slug, char.to_dict(), world.to_dict(), factions, encounters, lore)
 
         if not world.current_location_id:
-            with Halo(text='Weaving the starting Inciting Incident...', spinner='dots', color='yellow'):
+            with Halo(text='Forging the Story Spine...', spinner='dots', color='yellow'):
                 lore_keeper = LoreKeeper(llm_client, campaign_slug)
-                lore_keeper.generate_inciting_incident()
+                char_path = os.path.join("saves", campaign_slug, "character.json")
+                with open(char_path, "r", encoding="utf-8") as f:
+                    char_for_spine = json.load(f)
+                lore_keeper.generate_story_spine(char_for_spine)
             
             loc_prompt = f"Based on the campaign genre '{world.setting_genre}' and the starting scenario, generate the starting location (a specific room, street, or small area). Output ONLY valid JSON with keys: 'name', 'description', 'type' (e.g. 'city', 'dungeon'), and 'theme' (Must be exactly one of: {', '.join(VALID_THEMES_LIST)}). Do not include markdown."
             
@@ -738,6 +986,7 @@ def game_loop(llm_client, campaign_slug: str):
             choices = display_choices + [
                 questionary.Separator(),
                 "Type custom action...",
+                "Check Inventory",
                 "Travel (Move to new location)",
                 "System Menu..."
             ]
@@ -774,16 +1023,33 @@ def game_loop(llm_client, campaign_slug: str):
                 break
                 
             if choice == "Type custom action...":
-                action = questionary.text("Describe your action: ", style=theme.q_style).ask()
+                action = get_enhanced_custom_input(
+                    llm_client,
+                    "Describe your action: ",
+                    world.last_narrative or "You are in the middle of your adventure.",
+                    style=theme.q_style
+                )
                 if not action: continue
             elif choice == "Travel (Move to new location)":
                 run_travel_mode(llm_client, campaign_slug, world)
                 # After travel, trigger DM to narrate arrival
                 action = "I have traveled to a new location. Narrate my arrival and what I see."
+            elif choice == "Check Inventory":
+                char_path = os.path.join("saves", campaign_slug, "character.json")
+                with open(char_path, "r", encoding="utf-8") as f:
+                    char = Character.from_dict(json.load(f))
+                print_styled(f"\n--- Inventory ---", theme.color_system)
+                print(f"Currency: {char.currency}")
+                if not char.inventory:
+                    print("Your pockets are empty.")
+                for item in char.inventory:
+                    print(f" - {item.name}: {item.description} (Slot: {item.slot or 'None'})")
+                print_styled("-" * 17, theme.color_system)
+                continue
             elif choice == "OOC Commands...":
                 ooc_choice = questionary.select(
                     "OOC Command:",
-                    choices=["stats", "inventory", "quests", "log", "lore", "Back"],
+                    choices=["stats", "quests", "focus quest", "log", "lore", "Back"],
                     style=theme.q_style
                 ).ask()
                 if ooc_choice and ooc_choice != "Back":
@@ -908,7 +1174,19 @@ def run_new_game(llm_client):
         for i, pitch in enumerate(pitches):
             print_styled(f"{pitch}\n", COLOR_DM)
             
-        display_choices = [truncate_choice(p) for p in pitches]
+        display_choices = []
+        import re
+        for p in pitches:
+            match = re.search(r'\*\*(.*?)\*\*(?:\s*\((.*?)\))?', p)
+            if match:
+                title = match.group(1).strip()
+                genre = match.group(2).strip() if match.group(2) else ""
+                genre_str = f" ({genre})" if genre else ""
+                display_choices.append(f"{title}{genre_str}")
+            else:
+                parts = re.split(r'\s+[-–—]\s+', p, maxsplit=1)
+                display_choices.append(parts[0].strip())
+            
         choices = display_choices + ["Regenerate new options", "Custom (Write your own)", "Cancel and Return to Main Menu"]
         choice = questionary.select(
             "Select a setting:",
@@ -921,7 +1199,11 @@ def run_new_game(llm_client):
         if choice == "Regenerate new options":
             continue
         elif choice == "Custom (Write your own)":
-            selected_pitch = questionary.text("Describe your custom setting: ", style=custom_style).ask()
+            selected_pitch = get_enhanced_custom_input(
+                llm_client,
+                "Describe your custom setting: ",
+                "The player is designing a new RPG world. The setting should blend classic genres (fantasy, sci-fi, cyberpunk, post-apocalyptic, historical, horror) in an interesting way."
+            )
             if not selected_pitch: return
             break
         else:
