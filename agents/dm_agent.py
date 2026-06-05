@@ -13,6 +13,7 @@ from game_engine.world import WorldState
 from game_engine.dice import roll_check
 from game_engine.combat import Enemy
 from persistence.log_manager import write_dm_log
+from game_engine.context_map import ContextMap
 
 class DMAgent(BaseAgent):
     def __init__(self, llm_client, campaign_slug: str, budget_mode: bool = False, verbose: bool = False):
@@ -27,6 +28,7 @@ class DMAgent(BaseAgent):
         self.encounter_architect = EncounterArchitect(llm_client, campaign_slug)
         self.lore_keeper = LoreKeeper(llm_client, campaign_slug)
         self.story_critic = StoryCritic(llm_client, campaign_slug)
+        self.context_map = ContextMap()
         
         self.tools = self._get_tools()
         self.system_instruction = "" # Will be built dynamically before running
@@ -985,6 +987,39 @@ Available Tools:
         world.recent_player_actions.append(player_action[:150])  # Cap length
         if len(world.recent_player_actions) > 5:
             world.recent_player_actions.pop(0)
+
+        # --- REBUILD CONTEXT MAP (every turn) ---
+        char_path = os.path.join("saves", self.campaign_slug, "character.json")
+        char_data = {}
+        if os.path.exists(char_path):
+            with open(char_path, "r", encoding="utf-8") as f:
+                char_data = json.load(f)
+
+        factions_raw = {}
+        factions_path = os.path.join("saves", self.campaign_slug, "factions.json")
+        if os.path.exists(factions_path):
+            with open(factions_path, "r", encoding="utf-8") as f:
+                factions_raw = json.load(f)
+
+        encounters_raw = {}
+        enc_path = os.path.join("saves", self.campaign_slug, "encounters.json")
+        if os.path.exists(enc_path):
+            with open(enc_path, "r", encoding="utf-8") as f:
+                encounters_raw = json.load(f)
+
+        cast_raw = None
+        cast_path = os.path.join("saves", self.campaign_slug, "cast.json")
+        if os.path.exists(cast_path):
+            with open(cast_path, "r", encoding="utf-8") as f:
+                cast_raw = json.load(f)
+
+        self.context_map.rebuild({
+            "character": char_data,
+            "world_state": world_data,
+            "factions": factions_raw,
+            "encounters": encounters_raw,
+            "cast": cast_raw,
+        })
         
         # 2. Check for Heartbeat cycle
         # We store the next heartbeat target turn in world_state.json if not present
@@ -1032,12 +1067,13 @@ Available Tools:
             with open(world_path, "w", encoding="utf-8") as f:
                 json.dump(world.to_dict(), f, indent=4)
             
-            wk_res = self.world_keeper.heartbeat(budget_mode=self.budget_mode)
-            fw_res = self.faction_weaver.heartbeat(budget_mode=self.budget_mode)
+            wk_res = self.world_keeper.heartbeat(budget_mode=self.budget_mode, context_map=self.context_map)
+            fw_res = self.faction_weaver.heartbeat(budget_mode=self.budget_mode, context_map=self.context_map)
             # Pass critic assessment to LoreKeeper so it doesn't conflict
             lk_res = self.lore_keeper.heartbeat(
                 budget_mode=self.budget_mode, 
-                critic_assessment=critic_assessment
+                critic_assessment=critic_assessment,
+                context_map=self.context_map
             )
             heartbeat_log = f"\n[Heartbeat Event: {wk_res} {fw_res} {lk_res}]"
             

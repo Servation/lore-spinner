@@ -351,7 +351,7 @@ Your tools are:
         query = f"Location: {location}. Action: {action}. Determine if any secrets are unlocked or quests advanced."
         return self.run(query, max_turns=3, verbose=False, agent_name="LoreKeeper")
 
-    def heartbeat(self, budget_mode: bool = False, critic_assessment: dict = None) -> str:
+    def heartbeat(self, budget_mode: bool = False, critic_assessment: dict = None, context_map = None) -> str:
         if budget_mode:
             return "LoreKeeper heartbeat skipped (Budget Mode)."
             
@@ -364,20 +364,20 @@ Your tools are:
         world = WorldState.from_dict(data)
         
         heartbeat_logs = []
-
+ 
         # Read DM log if it exists to provide context of recent events
         dm_log_content = "No log found."
         dm_log_path = os.path.join("saves", self.campaign_slug, "dm_log.md")
         if os.path.exists(dm_log_path):
             with open(dm_log_path, "r", encoding="utf-8") as f:
                 dm_log_content = f.read()
-
+ 
         # Format quest status context
         quests_list = []
         for q in world.active_quests:
             quests_list.append(f"- Quest Name: {q.name} (ID: {q.id}), Status: {q.status}, Description: {q.description}")
         quests_str = "\n".join(quests_list) if quests_list else "No active quests."
-
+ 
         if world.escalated_rumors:
             rumors_str = ", ".join(world.escalated_rumors)
             arc_str = world.campaign_arc if world.campaign_arc else "None (Create one now based on these rumors)"
@@ -387,6 +387,10 @@ Your tools are:
                 f"The current Campaign Arc is: [{arc_str}]. \n\n"
                 f"Here is the DM log of recent events for context:\n"
                 f"\"\"\"\n{dm_log_content}\n\"\"\"\n\n"
+            )
+            if context_map:
+                query += f"Context Map Summary: {context_map.summary()}\n\n"
+            query += (
                 f"Weave these escalated rumors into a new Narrative Thread (Quest) and add it. "
                 f"If there is no Campaign Arc, use 'update_campaign_arc' to create one now. "
                 f"IMPORTANT: You MUST also call 'update_story_beat' with a specific, actionable 1-2 sentence directive telling the DM what the next narrative moment should be, adapted to the player's immediate context."
@@ -405,12 +409,12 @@ Your tools are:
                 heartbeat_logs.append("Processed escalated rumors into Narrative Threads.")
             else:
                 heartbeat_logs.append(f"LoreKeeper failed to process rumors; queue preserved. ({res})")
-
+ 
         # Reload world state to check spine progression pressure
         with open(world_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         world = WorldState.from_dict(data)
-
+ 
         if world.story_spine and world.story_spine.beats:
             active_beat = world.story_spine.get_active_beat()
             if active_beat:
@@ -424,7 +428,7 @@ Your tools are:
                         f"- Recommended Directive: {critic_assessment.get('directive', 'organic')}\n"
                         f"- Critic Note: {critic_assessment.get('critic_note', 'N/A')}\n"
                     )
-
+ 
                 spine_query = (
                     f"SPINE CHECK: The current story beat is Beat {active_beat.id} — '{active_beat.name}'. "
                     f"Dramatic question: '{active_beat.dramatic_question}'. "
@@ -433,6 +437,10 @@ Your tools are:
                     f"\"\"\"\n{dm_log_content}\n\"\"\"\n\n"
                     f"Here are the active quests:\n{quests_str}\n"
                     f"{critic_context}\n"
+                )
+                if context_map:
+                    spine_query += f"Context Map Summary: {context_map.summary()}\n\n"
+                spine_query += (
                     f"Your instructions:\n"
                     f"1. Determine if the active story beat's dramatic question has been resolved by checking the DM log and quest statuses. "
                     f"If the dramatic question has been answered, call 'advance_spine_beat' with resolution notes.\n"
@@ -444,7 +452,7 @@ Your tools are:
                 )
                 self.run(spine_query, max_turns=4, verbose=False, agent_name="LoreKeeper")
                 heartbeat_logs.append(f"Checked story spine progression for Beat {active_beat.id}.")
-
+ 
         return " | ".join(heartbeat_logs) if heartbeat_logs else "No activities."
 
     def generate_story_spine(self, char_data: dict) -> None:
@@ -482,8 +490,11 @@ Your tools are:
             f"Output the spine as a JSON object and use 'store_story_spine' to store it.\n"
             f"2. Generate 3 Spine Characters and store them using tools:\n"
             f"   - The Anchor: emotionally tied to the character's childhood or past life. The reason the player cares.\n"
-            f"   - The Catalyst: someone who appears helpful but has hidden knowledge or a hidden agenda. Drives Beats 2-3.\n"
+            f"   - The Catalyst: someone who appears helpful but has hidden knowledge or a hidden agenda. Drives Beats 2-3. Give them a highly unique, nuanced agenda (e.g., motivated by saving their family, seeking penance, or a tragic duty rather than a cliché double-cross).\n"
             f"   - The Adversary: a personal rival whose goals directly conflict with the player's. Persistent across multiple beats.\n"
+            f"   CRITICAL CHARACTER RULES:\n"
+            f"   - Do NOT use cliché names. Specifically, do NOT use the names: Elara, Kaelen, Lyra, Sera, Jax, Finn, Zephyr, Orion, Cora, or Gideon.\n"
+            f"   - Ensure each character has distinct, contrasting personalities and agendas.\n"
             f"   Use 'store_cast_member' for each character.\n"
             f"3. Create the Inciting Incident (Beat 1 quest) using 'add_quest' with priority 'main'. "
             f"It MUST have explicit positive and negative consequences and be personal to the character.\n"

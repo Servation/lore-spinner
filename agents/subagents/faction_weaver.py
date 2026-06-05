@@ -250,7 +250,7 @@ Your tools are:
             "resolve_faction_clock": resolve_faction_clock
         }
 
-    def heartbeat(self, budget_mode: bool = False) -> str:
+    def heartbeat(self, budget_mode: bool = False, context_map = None) -> str:
         """Executes faction scheming turn and ticks down active faction clocks."""
         path = os.path.join("saves", self.campaign_slug, "factions.json")
         world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
@@ -351,7 +351,9 @@ Your tools are:
             f"Reputations: { {k: v['reputation'] for k, v in data['factions'].items()} }. "
             f"Active Faction Clocks: {clocks_str}. "
             f"Clocks Triggered This Heartbeat: {', '.join(clock_trigger_events) if clock_trigger_events else 'None'}. "
-            f"Decide if any faction registers a new scheme/clock, or triggers a plot event."
         )
+        if context_map:
+            query += f"Context Map Summary: {context_map.summary()}. "
+        query += "Decide if any faction registers a new scheme/clock, or triggers a plot event."
         
         return self.run(query, max_turns=3, verbose=False, agent_name="FactionWeaver")

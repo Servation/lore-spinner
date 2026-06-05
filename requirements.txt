@@ -4,3 +4,4 @@ anthropic>=0.20.0
 python-dotenv>=1.0.1
 questionary>=2.0.10
 halo==0.0.31
+networkx

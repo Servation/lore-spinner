@@ -121,7 +121,7 @@ Your tools are:
             "set_bodily_needs": set_bodily_needs
         }
 
-    def heartbeat(self, budget_mode: bool = False) -> str:
+    def heartbeat(self, budget_mode: bool = False, context_map = None) -> str:
         """Executes the heartbeat turn. Evolves time and weather."""
         if budget_mode:
             # Rule-based fallback: 25% chance to advance time, 20% weather change
@@ -165,6 +165,9 @@ Your tools are:
             if loc_obj:
                 current_loc_name = f"{loc_obj.name} ({loc_obj.type})"
         
-        query = f"World Genre: {world.setting_genre}. Current time: {world.time_of_day}. Location: {current_loc_name}. Active environmental modifiers: {[m.name for m in world.environmental_modifiers]}. Update the environment if appropriate."
+        query = f"World Genre: {world.setting_genre}. Current time: {world.time_of_day}. Location: {current_loc_name}. Active environmental modifiers: {[m.name for m in world.environmental_modifiers]}."
+        if context_map:
+            query += f" Context Map Summary: {context_map.summary()}"
+        query += " Update the environment if appropriate."
         
         return self.run(query, max_turns=3, verbose=False, agent_name="WorldKeeper")
