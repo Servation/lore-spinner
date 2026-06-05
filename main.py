@@ -140,8 +140,7 @@ Example format: ["Variation one...", "Variation two...", "Variation three...", "
 
     # Step 4: Let player choose from enhanced options
     keep_label = f'Keep my original: "{draft[:60]}{"..." if len(draft) > 60 else ""}"'
-    ai_choices = [opt[:120] for opt in enhanced_options[:4]]
-    final_choices = ai_choices + [keep_label, "Write a new draft"]
+    final_choices = enhanced_options[:4] + [keep_label, "Write a new draft"]
 
     final_choice = questionary.select(
         "Choose an enhanced version or keep your original:",
@@ -156,9 +155,7 @@ Example format: ["Variation one...", "Variation two...", "Variation three...", "
     if final_choice == "Write a new draft":
         return get_enhanced_custom_input(llm_client, prompt_label, context_text, style)
 
-    # Return the full (untruncated) version of the chosen option
-    idx = ai_choices.index(final_choice)
-    return enhanced_options[idx]
+    return final_choice
 
 def generate_setting_pitches(llm_client) -> List[str]:
     import random
