@@ -1143,9 +1143,6 @@ def game_loop(llm_client, campaign_slug: str):
                 # After travel, trigger DM to narrate arrival
                 action = "I have traveled to a new location. Narrate my arrival and what I see."
             elif choice == "Check Inventory":
-                char_path = os.path.join("saves", campaign_slug, "character.json")
-                with open(char_path, "r", encoding="utf-8") as f:
-                    char = Character.from_dict(json.load(f))
                 print_styled(f"\n--- Inventory ---", theme.color_system)
                 print(f"Currency: {char.currency}")
                 if not char.inventory:
