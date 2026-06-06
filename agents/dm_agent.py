@@ -35,35 +35,81 @@ class DMAgent(BaseAgent):
         super().__init__(llm_client, self.tools, "")
 
     def _get_tools(self) -> Dict[str, Callable[[str], str]]:
+
+        char_cache = {"mtime": 0, "data": None}
         def get_character_sheet(dummy: str) -> str:
             path = os.path.join("saves", self.campaign_slug, "character.json")
             if not os.path.exists(path):
                 return "Error: Character state not found."
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read()
 
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                return "Error: character.json could not be accessed."
+
+            if char_cache["mtime"] != mtime or char_cache["data"] is None:
+                with open(path, "r", encoding="utf-8") as f:
+                    char_cache["data"] = f.read()
+                char_cache["mtime"] = mtime
+
+            return char_cache["data"]
+
+        world_cache = {"mtime": 0, "data": None}
         def get_world_details(dummy: str) -> str:
             path = os.path.join("saves", self.campaign_slug, "world_state.json")
             if not os.path.exists(path):
                 return "Error: World state not found."
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read()
 
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                return "Error: world_state.json could not be accessed."
+
+            if world_cache["mtime"] != mtime or world_cache["data"] is None:
+                with open(path, "r", encoding="utf-8") as f:
+                    world_cache["data"] = f.read()
+                world_cache["mtime"] = mtime
+
+            return world_cache["data"]
+
+        bible_cache = {"mtime": 0, "data": None}
         def query_world_bible(dummy: str) -> str:
             """Usage: Action: query_world_bible"""
             path = os.path.join("saves", self.campaign_slug, "world_bible.md")
             if not os.path.exists(path):
                 return "Error: World Bible not found."
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read()
+
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                return "Error: world_bible.md could not be accessed."
+
+            if bible_cache["mtime"] != mtime or bible_cache["data"] is None:
+                with open(path, "r", encoding="utf-8") as f:
+                    bible_cache["data"] = f.read()
+                bible_cache["mtime"] = mtime
+
+            return bible_cache["data"]
+
+        lore_cache = {"mtime": 0, "data": None}
 
         def query_unlocked_lore(query: str) -> str:
             """Usage: Action: query_unlocked_lore: [title or keyword]"""
             path = os.path.join("saves", self.campaign_slug, "lore.json")
             if not os.path.exists(path):
                 return "Error: lore.json not found."
-            with open(path, "r", encoding="utf-8") as f:
-                lore_data = json.load(f)
+
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                return "Error: lore.json could not be accessed."
+
+            if lore_cache["mtime"] != mtime or lore_cache["data"] is None:
+                with open(path, "r", encoding="utf-8") as f:
+                    lore_cache["data"] = json.load(f)
+                lore_cache["mtime"] = mtime
+
+            lore_data = lore_cache["data"]
             
             results = []
             q_lower = query.lower()
