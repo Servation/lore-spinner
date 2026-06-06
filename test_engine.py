@@ -82,6 +82,19 @@ def test_character_and_items():
     assert "weapon" in char.equipped
     assert len(char.inventory) == 1
     
+    # Unequip error path
+    unequip_err = char.unequip("head")
+    assert unequip_err == "No item equipped in slot 'head'."
+
+    # Unequip success path
+    unequip_success_err = char.unequip("weapon")
+    assert unequip_success_err is None
+    assert "weapon" not in char.equipped
+    assert len(char.inventory) == 2
+
+    # Re-equip for the rest of the test
+    char.equip("Laser Sword")
+
     # Effective modifiers
     char.abilities.add_tag("combat", 1)
     # Combat modifier should be: innate (1) + weapon (2) = 3
