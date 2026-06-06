@@ -595,6 +595,386 @@ def test_register_and_move_location():
     SaveManager.delete_save(slug)
     print("[OK] register_and_move_location tests passed.")
 
+def test_stats_mode():
+    print("Testing Stats Mode...")
+    from game_engine.world import WorldState
+    from persistence.save_manager import SaveManager, generate_slug
+    from agents.dm_agent import DMAgent
+    from llm_clients import MockClient
+    
+    # 1. Default value of stats_mode
+    world = WorldState()
+    assert world.stats_mode is False
+    
+    # 2. Round-trip serialization
+    campaign_name = "Stats Mode Test"
+    slug = generate_slug(campaign_name)
+    char = Character(name="Arthur")
+    world_active = WorldState(setting_genre="Fantasy", stats_mode=True)
+    factions = {"factions": {}}
+    encounters = {"active_encounter": None, "recent_loot": []}
+    lore = {"unlocked_lore": [], "secrets": []}
+    
+    SaveManager.save_game(campaign_name, char.to_dict(), world_active.to_dict(), factions, encounters, lore)
+    
+    # Load and verify
+    loaded = SaveManager.load_game(slug)
+    assert loaded is not None
+    _, w_data, _, _, _ = loaded
+    world_loaded = WorldState.from_dict(w_data)
+    assert world_loaded.stats_mode is True
+    
+    # 3. DM prompt injection check
+    client = MockClient(model_name="mock-model")
+    dm = DMAgent(client, slug)
+    prompt = dm._build_dynamic_prompt()
+    assert "STATS MODE IS ACTIVE" in prompt
+    assert "Exception: Stats Mode is active. You MUST include Mechanics Blocks" in prompt
+    
+    # Cleanup stats mode test save
+    SaveManager.delete_save(slug)
+    
+    # 4. DM prompt without stats mode check
+    campaign_name_no_stats = "No Stats Test"
+    slug_no_stats = generate_slug(campaign_name_no_stats)
+    world_inactive = WorldState(setting_genre="Fantasy", stats_mode=False)
+    SaveManager.save_game(campaign_name_no_stats, char.to_dict(), world_inactive.to_dict(), factions, encounters, lore)
+    dm_no_stats = DMAgent(client, slug_no_stats)
+    prompt_no_stats = dm_no_stats._build_dynamic_prompt()
+    assert "STATS MODE IS ACTIVE" not in prompt_no_stats
+    assert "Exception: Stats Mode is active" not in prompt_no_stats
+    SaveManager.delete_save(slug_no_stats)
+    
+    # 5. UI output parsing checks (simulate print_dm_response outcomes)
+    from main import print_dm_response
+    import io
+    from contextlib import redirect_stdout
+    
+    test_text = (
+        "You open the chest.\n"
+        "[MECHANICS: Lockpicking | dexterity +2 | DC 12] (Success)\n"
+        "Inside, you find gold."
+    )
+    
+    # With stats_mode=True
+    f = io.StringIO()
+    with redirect_stdout(f):
+        print_dm_response(test_text, "\033[0m", True)
+    output = f.getvalue()
+    assert "MECHANICS:" in output
+    # green color check
+    assert "\033[32m" in output
+    
+    # With stats_mode=False (should strip the mechanics block)
+    f = io.StringIO()
+    with redirect_stdout(f):
+        print_dm_response(test_text, "\033[0m", False)
+    output = f.getvalue()
+    assert "MECHANICS:" not in output
+    assert "You open the chest." in output
+    assert "Inside, you find gold." in output
+    
+    print("[OK] Stats Mode tests passed.")
+
+def test_attribute_fallback_checks():
+    print("Testing Attribute Fallback Checks...")
+    from game_engine.character import Character
+    from game_engine.ability_system import AbilitySet
+    from game_engine.item_system import Item
+    from game_engine.world import WorldState
+    from persistence.save_manager import SaveManager, generate_slug
+    from agents.dm_agent import DMAgent
+    from llm_clients import MockClient
+
+    # 1. Test get_effective_modifier logic
+    char = Character(name="Arthur")
+    char.abilities.add_tag("dexterity", 2)
+    char.abilities.add_tag("strength", 1)
+    
+    # Check fallback attribute is resolved when skill tag is absent
+    assert char.get_effective_modifier("lockpicking", fallback_attribute="dexterity") == 2
+    
+    # Check specific skill overrides fallback attribute
+    char.abilities.add_tag("lockpicking", 3)
+    assert char.get_effective_modifier("lockpicking", fallback_attribute="dexterity") == 3
+    
+    # Check item bonuses combine with fallback attributes
+    char_no_skill = Character(name="Arthur")
+    char_no_skill.abilities.add_tag("dexterity", 2)
+    lockpicks = Item(name="Advanced Lockpicks", description="Bonus to lockpicking", tag_modifiers={"lockpicking": 2}, slot="accessory")
+    char_no_skill.add_item(lockpicks)
+    char_no_skill.equip("Advanced Lockpicks")
+    # Base dexterity (2) + item lockpicking (2) = 4
+    assert char_no_skill.get_effective_modifier("lockpicking", fallback_attribute="dexterity") == 4
+
+    # 2. Test tool execution with 3-part fallback syntax
+    campaign_name = "Fallback Test Campaign"
+    slug = generate_slug(campaign_name)
+    
+    factions = {"factions": {}}
+    encounters = {"active_encounter": None, "recent_loot": []}
+    lore = {"unlocked_lore": [], "secrets": []}
+    
+    world = WorldState(setting_genre="Fantasy")
+    char_test = Character(name="Lancelot")
+    char_test.abilities.add_tag("dexterity", 3)
+    # Note: no lockpicking skill
+    
+    SaveManager.save_game(campaign_name, char_test.to_dict(), world.to_dict(), factions, encounters, lore)
+    
+    client = MockClient(model_name="mock-model")
+    dm = DMAgent(client, slug)
+    
+    # Call roll_ability_check tool with 3-part syntax
+    res_json_str = dm.tools["roll_ability_check"]("lockpicking | dexterity | 10")
+    res = json.loads(res_json_str)
+    
+    assert "success" in res
+    assert res["modifier"] == 3  # Should use dexterity modifier
+    assert res["dc"] == 10
+    
+    # Let's inspect character on disk
+    char_path = os.path.join("saves", slug, "character.json")
+    with open(char_path, "r", encoding="utf-8") as f:
+        saved_char_data = json.load(f)
+    saved_char = Character.from_dict(saved_char_data)
+    
+    # Verify we did not accidentally add lockpicking innate tag
+    assert "lockpicking" not in saved_char.abilities.tags
+    
+    # If the check succeeded, the usage_count of dexterity should be 1
+    if res["success"]:
+        assert saved_char.abilities.tags["dexterity"].usage_count == 1
+    else:
+        assert saved_char.abilities.tags["dexterity"].usage_count == 0
+        
+    # Cleanup
+    SaveManager.delete_save(slug)
+    print("[OK] Attribute Fallback Checks tests passed.")
+
+def test_combat_style_and_maneuvers():
+    print("Testing Combat Styles & Maneuvers...")
+    from game_engine.character import Character
+    from game_engine.world import WorldState
+    from persistence.save_manager import SaveManager, generate_slug
+    from agents.dm_agent import DMAgent
+    from llm_clients import MockClient
+    import json
+    import os
+
+    # 1. Test serialization/deserialization round-trip
+    char = Character(
+        name="Diana",
+        combat_style="Aether Blades",
+        combat_maneuvers=["Spatial Slash: Delivers a void-infused strike", "Void Shield: Deflects next attack"]
+    )
+    char_dict = char.to_dict()
+    assert char_dict["combat_style"] == "Aether Blades"
+    assert "Spatial Slash" in char_dict["combat_maneuvers"][0]
+    
+    char_loaded = Character.from_dict(char_dict)
+    assert char_loaded.combat_style == "Aether Blades"
+    assert len(char_loaded.combat_maneuvers) == 2
+    assert char_loaded.combat_maneuvers[0] == "Spatial Slash: Delivers a void-infused strike"
+    
+    # 2. Test backwards compatibility (deserializing with missing fields)
+    old_char_dict = {
+        "name": "Arthur",
+        "hp": 20,
+        "max_hp": 20,
+        "level": 1,
+        "xp": 0,
+        "backstory": "A brave knight.",
+        "abilities": {"tags": {}},
+        "inventory": [],
+        "equipped": {},
+        "relationships": {}
+    }
+    char_old = Character.from_dict(old_char_dict)
+    assert char_old.combat_style == ""
+    assert char_old.combat_maneuvers == []
+
+    # 3. Test dynamic prompt injection under combat override
+    campaign_name = "Combat Style Test Campaign"
+    slug = generate_slug(campaign_name)
+    
+    factions = {"factions": {}}
+    # active encounter with a living enemy to trigger is_combat
+    encounters = {
+        "active_encounter": {
+            "enemies": [
+                {"name": "Shadow Beast", "hp": 15, "max_hp": 15, "threat_level": 3}
+            ]
+        },
+        "recent_loot": []
+    }
+    lore = {"unlocked_lore": [], "secrets": []}
+    
+    world = WorldState(setting_genre="Cyberpunk")
+    
+    SaveManager.save_game(campaign_name, char.to_dict(), world.to_dict(), factions, encounters, lore)
+    
+    client = MockClient(model_name="mock-model")
+    dm = DMAgent(client, slug)
+    
+    prompt = dm._build_dynamic_prompt()
+    
+    assert "COMBAT OVERRIDE" in prompt
+    assert 'Combat Style: "Aether Blades"' in prompt
+    assert 'Combat Maneuvers: Spatial Slash: Delivers a void-infused strike, Void Shield: Deflects next attack' in prompt
+    
+    # Cleanup
+    SaveManager.delete_save(slug)
+    print("[OK] Combat Styles & Maneuvers tests passed.")
+
+def test_combat_allies():
+    print("Testing Combat Allies...")
+    from game_engine.character import Character
+    from game_engine.world import WorldState
+    from game_engine.combat import Enemy, Ally, resolve_combat_round
+    from persistence.save_manager import SaveManager, generate_slug
+    from agents.dm_agent import DMAgent
+    from llm_clients import MockClient
+    import json
+    import os
+
+    # 1. Test Ally serialization/deserialization
+    ally = Ally(name="Rhys", hp=15, max_hp=15, threat_level=2, weapon_damage="1d8", defense=12, speed=3)
+    a_dict = ally.to_dict()
+    assert a_dict["name"] == "Rhys"
+    assert a_dict["hp"] == 15
+    assert a_dict["threat_level"] == 2
+    
+    ally_loaded = Ally.from_dict(a_dict)
+    assert ally_loaded.name == "Rhys"
+    assert ally_loaded.weapon_damage == "1d8"
+    assert ally_loaded.speed == 3
+    assert ally_loaded.defense == 12
+
+    # 2. Test resolve_combat_round with ally in initiative
+    char = Character(name="Hero", hp=20)
+    enemy = Enemy(name="Goblin", hp=100, max_hp=100, threat_level=1, defense=10)
+    
+    initiatives = [
+        {"id": "player", "name": "Player", "roll": 18},
+        {"id": "ally_0", "name": "Rhys", "roll": 15},
+        {"id": "enemy_0", "name": "Goblin", "roll": 12}
+    ]
+    
+    res = resolve_combat_round(char, "combat", 0, [enemy], initiatives, None, [ally])
+    assert len(res["round_events"]) >= 3 # Player, Ally, and Enemy should all get turns/events
+    
+    # 3. Test DM Agent tool integration
+    campaign_name = "Combat Allies Test Campaign"
+    slug = generate_slug(campaign_name)
+    
+    factions = {"factions": {}}
+    encounters = {
+        "active_encounter": {
+            "enemies": [
+                {"name": "Cultist", "hp": 100, "max_hp": 100, "threat_level": 2}
+            ],
+            "initiative_order": [
+                {"id": "player", "name": "Player", "roll": 18},
+                {"id": "enemy_0", "name": "Cultist", "roll": 12}
+            ]
+        },
+        "recent_loot": []
+    }
+    lore = {"unlocked_lore": [], "secrets": []}
+    world = WorldState(setting_genre="Fantasy")
+    
+    SaveManager.save_game(campaign_name, char.to_dict(), world.to_dict(), factions, encounters, lore)
+    
+    client = MockClient(model_name="mock-model")
+    dm = DMAgent(client, slug)
+    
+    # Call spawn_ally_in_combat tool
+    spawn_res = dm.tools["spawn_ally_in_combat"]("Serana | 3 | 2d6")
+    assert "Serana" in spawn_res
+    
+    # Load encounters state from disk to verify
+    enc_path = os.path.join("saves", slug, "encounters.json")
+    with open(enc_path, "r", encoding="utf-8") as f:
+        saved_enc = json.load(f)
+    
+    ae = saved_enc["active_encounter"]
+    assert len(ae.get("allies", [])) == 1
+    assert ae["allies"][0]["name"] == "Serana"
+    assert ae["allies"][0]["weapon_damage"] == "2d6"
+    assert any(init["id"] == "ally_0" for init in ae["initiative_order"])
+    
+    # Run a combat turn using apply_combat_turn
+    turn_res_str = dm.tools["apply_combat_turn"]("0 | combat")
+    turn_res = json.loads(turn_res_str)
+    assert len(turn_res["round_events"]) >= 3 # Player, Serana, and Cultist all took turns
+    
+    # Clean up
+    SaveManager.delete_save(slug)
+    print("[OK] Combat Allies tests passed.")
+
+def test_encounter_scaling():
+    print("Testing Early-Game Combat Scaling...")
+    from game_engine.character import Character
+    from game_engine.world import WorldState
+    from persistence.save_manager import SaveManager, generate_slug
+    from agents.subagents.encounter_architect import EncounterArchitect
+    import json
+    import os
+
+    # 1. Test scaling for turn_count <= 10 (early campaign)
+    campaign_name = "Scaling Test Campaign"
+    slug = generate_slug(campaign_name)
+    
+    char = Character(name="Novice")
+    world = WorldState(setting_genre="Fantasy", turn_count=5)
+    factions = {"factions": {}}
+    encounters = {"active_encounter": None, "recent_loot": []}
+    lore = {"unlocked_lore": [], "secrets": []}
+    
+    SaveManager.save_game(campaign_name, char.to_dict(), world.to_dict(), factions, encounters, lore)
+    
+    architect = EncounterArchitect(None, slug)
+    
+    # Try to spawn high threat (4) with 5 enemies
+    spawn_tool = architect.tools["spawn_encounter"]
+    res = spawn_tool("Orc Raider | 4 | Fantasy | 5 | A dangerous pack of Orcs")
+    assert "Spawned encounter" in res
+    
+    # Verify encounters.json clamping
+    enc_path = os.path.join("saves", slug, "encounters.json")
+    with open(enc_path, "r", encoding="utf-8") as f:
+        saved_enc = json.load(f)
+        
+    ae = saved_enc["active_encounter"]
+    # turn_count <= 10 count capped to min(5, 2) = 2
+    assert len(ae["enemies"]) == 2
+    # turn_count <= 10 threat capped to min(4, 1) = 1 (since count > 1)
+    for enemy in ae["enemies"]:
+        assert enemy["threat_level"] == 1
+        
+    # 2. Test scaling for turn_count <= 25 (mid-early campaign)
+    world_lvl2 = WorldState(setting_genre="Fantasy", turn_count=20)
+    SaveManager.save_game(campaign_name, char.to_dict(), world_lvl2.to_dict(), factions, encounters, lore)
+    
+    architect2 = EncounterArchitect(None, slug)
+    res2 = architect2.tools["spawn_encounter"]("Minotaur | 4 | Fantasy | 5 | Ancient beasts")
+    assert "Spawned encounter" in res2
+    
+    with open(enc_path, "r", encoding="utf-8") as f:
+        saved_enc2 = json.load(f)
+        
+    ae2 = saved_enc2["active_encounter"]
+    # turn_count <= 25 count capped to min(5, 3) = 3
+    assert len(ae2["enemies"]) == 3
+    # turn_count <= 25 threat capped to min(4, 2) = 2 (since count > 1)
+    for enemy in ae2["enemies"]:
+        assert enemy["threat_level"] == 2
+        
+    # Clean up
+    SaveManager.delete_save(slug)
+    print("[OK] Early-Game Combat Scaling tests passed.")
+
 def main():
     import sys
     print("========================================")
@@ -612,7 +992,13 @@ def main():
         test_contextual_verification()
         test_story_spine_and_cast()
         test_register_and_move_location()
+        test_stats_mode()
+        test_attribute_fallback_checks()
+        test_combat_style_and_maneuvers()
+        test_combat_allies()
+        test_encounter_scaling()
         print("\n========================================")
+
         print("  ALL TESTS PASSED SUCCESSFULLY! (100%)")
         print("========================================")
     except AssertionError as e:

@@ -51,6 +51,50 @@ class Enemy:
         )
 
 
+@dataclass
+class Ally:
+    name: str
+    hp: int
+    max_hp: int
+    threat_level: int  # 1 to 5
+    weapon_damage: str = "1d6"
+    defense: int = 10  # Base DC to hit them
+    speed: int = 2     # Used for calculating combat initiative
+
+    def is_alive(self) -> bool:
+        return self.hp > 0
+
+    def take_damage(self, amount: int) -> int:
+        damage = max(0, amount)
+        self.hp = max(0, self.hp - damage)
+        return damage
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "hp": self.hp,
+            "max_hp": self.max_hp,
+            "threat_level": self.threat_level,
+            "weapon_damage": self.weapon_damage,
+            "defense": self.defense,
+            "speed": self.speed
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Ally":
+        if not data:
+            return cls(name="Ally", hp=10, max_hp=10, threat_level=1)
+        return cls(
+            name=data.get("name", "Ally"),
+            hp=data.get("hp", 10),
+            max_hp=data.get("max_hp", 10),
+            threat_level=data.get("threat_level", 1),
+            weapon_damage=data.get("weapon_damage", "1d6"),
+            defense=data.get("defense", 10),
+            speed=data.get("speed", 2)
+        )
+
+
 def generate_enemy(name: str, threat_level: int, genre: str) -> Enemy:
     """Generates an enemy scaled to a threat level and setting genre."""
     # Scale HP and Defense based on threat level
@@ -109,16 +153,20 @@ def resolve_combat_round(
     target_index: int,
     enemies: List[Enemy], 
     initiative_order: List[Dict[str, Any]],
-    environmental_modifiers: Optional[List[AbilityTag]] = None
+    environmental_modifiers: Optional[List[AbilityTag]] = None,
+    allies: Optional[List[Ally]] = None
 ) -> Dict[str, Any]:
     """Resolves a full round of combat for all participants based on initiative order.
     
     1. Iterates through initiative_order.
     2. If it's the player's turn: Player attacks target_index.
-    3. If it's an enemy's turn: Enemy attacks player using Evasion mechanic.
+    3. If it's an enemy's turn: Enemy attacks player or ally.
+    4. If it's an ally's turn: Ally attacks a random enemy.
     
     Returns a comprehensive details dictionary for the DM to narrate.
     """
+    import random
+    allies_list = allies or []
     results = {
         "round_events": [],
         "progression_triggered": False,
@@ -212,57 +260,123 @@ def resolve_combat_round(
             if not enemy.is_alive():
                 continue # Dead enemies don't get a turn
                 
-            # Enemy attacks player. Player rolls Evasion.
-            if "evasion" in character.abilities.tags:
-                evasion_tag = "evasion"
-            elif "athletics" in character.abilities.tags:
-                evasion_tag = "athletics"
-            elif "combat" in character.abilities.tags:
-                evasion_tag = "combat"
-            else:
-                evasion_tag = "evasion"
+            # Enemy decides target. If there are living allies, 50% chance to target an ally.
+            target_entity = "player"
+            living_allies = [a for a in allies_list if a.is_alive()]
+            if living_allies and random.random() < 0.5:
+                target_entity = random.choice(living_allies)
                 
-            player_evasion_mod = character.get_effective_modifier(evasion_tag, environmental_modifiers)
-            player_def_roll = roll(20) + player_evasion_mod + 10 # Base 10 + d20 + evasion
-            
-            # Armor reduces damage or increases defense
-            armor = character.equipped.get("armor")
-            if armor:
-                player_def_roll += armor.tag_modifiers.get("defense", 1)
-                
-            enemy_atk_mod = enemy.threat_level + (enemy.threat_level // 2)
-            enemy_atk_roll = roll(20) + enemy_atk_mod
-            
-            hit = enemy_atk_roll >= player_def_roll
-            
-            event = {
-                "actor": enemy.name,
-                "target": "player",
-                "hit": hit,
-                "atk_roll": enemy_atk_roll,
-                "def_roll": player_def_roll,
-                "damage": 0,
-                "damage_detail": ""
-            }
-            
-            if hit:
-                # Enemy damage
-                dmg, dmg_detail = roll_damage(enemy.weapon_damage)
-                
-                # Apply armor damage reduction
-                dr = 0
-                if armor:
-                    dr = armor.tag_modifiers.get("damage_reduction", 0)
-                final_dmg = max(1, dmg - dr)
-                if dr > 0:
-                    dmg_detail += f" - {dr} (armor)"
+            if target_entity == "player":
+                # Enemy attacks player. Player rolls Evasion.
+                if "evasion" in character.abilities.tags:
+                    evasion_tag = "evasion"
+                elif "athletics" in character.abilities.tags:
+                    evasion_tag = "athletics"
+                elif "combat" in character.abilities.tags:
+                    evasion_tag = "combat"
+                else:
+                    evasion_tag = "evasion"
                     
-                dmg_taken = character.take_damage(final_dmg)
-                event["damage"] = dmg_taken
-                event["damage_detail"] = f"{dmg_detail} = {dmg_taken}"
+                player_evasion_mod = character.get_effective_modifier(evasion_tag, environmental_modifiers)
+                player_def_roll = roll(20) + player_evasion_mod + 10 # Base 10 + d20 + evasion
                 
-            results["round_events"].append(event)
-            
+                # Armor reduces damage or increases defense
+                armor = character.equipped.get("armor")
+                if armor:
+                    player_def_roll += armor.tag_modifiers.get("defense", 1)
+                    
+                enemy_atk_mod = enemy.threat_level + (enemy.threat_level // 2)
+                enemy_atk_roll = roll(20) + enemy_atk_mod
+                
+                hit = enemy_atk_roll >= player_def_roll
+                
+                event = {
+                    "actor": enemy.name,
+                    "target": "player",
+                    "hit": hit,
+                    "atk_roll": enemy_atk_roll,
+                    "def_roll": player_def_roll,
+                    "damage": 0,
+                    "damage_detail": ""
+                }
+                
+                if hit:
+                    dmg, dmg_detail = roll_damage(enemy.weapon_damage)
+                    dr = 0
+                    if armor:
+                        dr = armor.tag_modifiers.get("damage_reduction", 0)
+                    final_dmg = max(1, dmg - dr)
+                    if dr > 0:
+                        dmg_detail += f" - {dr} (armor)"
+                        
+                    dmg_taken = character.take_damage(final_dmg)
+                    event["damage"] = dmg_taken
+                    event["damage_detail"] = f"{dmg_detail} = {dmg_taken}"
+                    
+                results["round_events"].append(event)
+            else:
+                # Enemy attacks ally
+                enemy_atk_mod = enemy.threat_level + (enemy.threat_level // 2)
+                enemy_atk_roll = roll(20) + enemy_atk_mod
+                
+                hit = enemy_atk_roll >= target_entity.defense
+                
+                event = {
+                    "actor": enemy.name,
+                    "target": target_entity.name,
+                    "hit": hit,
+                    "atk_roll": enemy_atk_roll,
+                    "def_roll": target_entity.defense,
+                    "damage": 0,
+                    "damage_detail": ""
+                }
+                
+                if hit:
+                    dmg, dmg_detail = roll_damage(enemy.weapon_damage)
+                    dmg_taken = target_entity.take_damage(dmg)
+                    event["damage"] = dmg_taken
+                    event["damage_detail"] = f"{dmg_detail} = {dmg_taken}"
+                    event["target_dead"] = not target_entity.is_alive()
+                    
+                results["round_events"].append(event)
+                
+        elif entity_id.startswith("ally_"):
+            # --- Ally's Turn ---
+            ally_idx = int(entity_id.split("_")[1])
+            if ally_idx < 0 or ally_idx >= len(allies_list):
+                continue
+                
+            ally = allies_list[ally_idx]
+            if not ally.is_alive():
+                continue # Dead/unconscious allies don't get a turn
+                
+            # Ally targets a random living enemy
+            if living_enemies:
+                target_enemy = random.choice(living_enemies)
+                ally_atk_mod = ally.threat_level + (ally.threat_level // 2)
+                ally_atk_roll = roll(20) + ally_atk_mod
+                
+                hit = ally_atk_roll >= target_enemy.defense
+                
+                event = {
+                    "actor": ally.name,
+                    "target": target_enemy.name,
+                    "hit": hit,
+                    "atk_roll": ally_atk_roll,
+                    "def_roll": target_enemy.defense,
+                    "damage": 0,
+                    "damage_detail": ""
+                }
+                
+                if hit:
+                    dmg, dmg_detail = roll_damage(ally.weapon_damage)
+                    dmg_taken = target_enemy.take_damage(dmg)
+                    event["damage"] = dmg_taken
+                    event["damage_detail"] = f"{dmg_detail} = {dmg_taken}"
+                    event["target_dead"] = not target_enemy.is_alive()
+                    
+                results["round_events"].append(event)
+                
     if not character.is_alive():
         results["player_dead"] = True
     living_enemies = [e for e in enemies if e.is_alive()]

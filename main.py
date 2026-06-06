@@ -43,6 +43,23 @@ VERBOSE_GLOBAL = False
 def print_styled(text: str, color: str = COLOR_RESET):
     print(f"{color}{text}{COLOR_RESET}")
 
+def print_dm_response(text: str, dm_color: str, stats_mode: bool):
+    lines = text.split("\n")
+    for line in lines:
+        if line.strip().startswith("[MECHANICS:"):
+            if stats_mode:
+                line_lower = line.lower()
+                if any(x in line_lower for x in ["(success)", "(hit)", "(blocked)"]):
+                    print_styled(line, "\033[32m")  # Green
+                elif any(x in line_lower for x in ["(failure)", "(miss)", "(wounded)"]):
+                    print_styled(line, "\033[31m")  # Red
+                else:
+                    print_styled(line, dm_color)
+            else:
+                continue
+        else:
+            print_styled(line, dm_color)
+
 def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
@@ -351,11 +368,18 @@ Backstory details:
 5. Item: {answers[4]}
 
 Generate starting attributes and gear based on the setting and backstory. If the player wrote a custom backstory, thoughtfully extrapolate their implied skills based on context clues.
+You MUST generate starting attributes for the 6 core traits: "strength", "dexterity", "intellect", "fortitude", "presence", and "perception". Distribute the following pool to these 6 traits: one +2, two +1s, and three +0s, matching the character's backstory and details. In addition, generate 2-3 specific skill tags matching their backstory at +1 or +2 (e.g. "combat", "hacking", "stealth").
+Also, generate a defining combat style and 2-3 special maneuvers/spells matching their backstory.
 For the "description" field of each item, write a diegetic narrative description that implies what the item does without revealing raw numbers. For common simple items, just describe what they do. For special items, be more detailed about what it looks like and what it can do if it is known.
 Output ONLY a valid JSON object matching this exact structure:
 {{
-  "tags": {{"combat": 2, "stealth": 1, "athletics": 2, "survival": 1}},
+  "tags": {{"strength": 2, "dexterity": 1, "intellect": 0, "fortitude": 1, "presence": 0, "perception": 0, "combat": 2, "stealth": 1}},
   "currency": 100,
+  "combat_style": "Stealthy Daggerplay",
+  "combat_maneuvers": [
+    "Backstab: High damage strike from concealment (stealth | dexterity | target defense)",
+    "Smoke Bomb: Escapes combat or enters cover (stealth | dexterity | 12)"
+  ],
   "weapon": {{"name": "Rusty Scavenger Pipe", "description": "A heavy metal pipe.", "tag_modifiers": {{"combat": 1, "damage": 1}}}},
   "armor": {{"name": "Thick Leather Coat", "description": "Protects against scrapes.", "tag_modifiers": {{"defense": 1}}}},
   "food": {{"name": "Travel Rations", "description": "Dried meat and hardtack."}},
@@ -373,6 +397,8 @@ Do not include any markdown formatting, thoughts, or text."""
     food_data = None
     camping_data = None
     currency = 50
+    combat_style = ""
+    combat_maneuvers = []
     try:
         # Strip potential markdown code blocks
         clean_res = response.strip()
@@ -391,13 +417,65 @@ Do not include any markdown formatting, thoughts, or text."""
             food_data = data.get("food")
             camping_data = data.get("camping_gear")
             currency = data.get("currency", 50)
+            combat_style = data.get("combat_style", "")
+            combat_maneuvers = data.get("combat_maneuvers", [])
         else:
             tags = data
+            combat_style = ""
+            combat_maneuvers = []
             
     except Exception:
         # Fallback tags
         print_styled("Warning: Using default attributes due to generation hiccup.", COLOR_ERROR)
-        tags = {"combat": 2, "perception": 2, "survival": 1, "athletics": 1}
+        tags = {
+            "strength": 1, "dexterity": 2, "intellect": 1, "fortitude": 0, "presence": 0, "perception": 1,
+            "combat": 2, "stealth": 1
+        }
+        combat_style = ""
+        combat_maneuvers = []
+
+    # Ensure combat style and maneuvers are populated, falling back to sensible defaults based on highest starting tag
+    if not combat_style or not combat_maneuvers:
+        highest_tag = "combat"
+        highest_val = -10
+        for t_name, val in tags.items():
+            if t_name in ["strength", "dexterity", "intellect", "fortitude", "presence", "perception"]:
+                continue
+            if val > highest_val:
+                highest_val = val
+                highest_tag = t_name
+        
+        highest_tag_lower = highest_tag.lower()
+        if highest_tag_lower in ["spellcasting", "mysticism"]:
+            combat_style = "Arcane Spellslinging"
+            combat_maneuvers = [
+                "Firebolt: Channels raw elemental fire as a ranged attack (spellcasting | intellect | target defense)",
+                "Shield: Creates a shimmering barrier to deflect attacks (spellcasting | intellect | attack roll)"
+            ]
+        elif highest_tag_lower in ["hacking", "cyberware_control", "electronics"]:
+            combat_style = "Tactical Cyber-Hacking"
+            combat_maneuvers = [
+                "System Overload: Induces a feedback loop to damage cybernetics or robots (hacking | intellect | target defense)",
+                "Optic Glitch: Temporarily blinds enemies using visual feeds (hacking | intellect | target defense)"
+            ]
+        elif highest_tag_lower in ["stealth", "lockpicking"]:
+            combat_style = "Stealthy Skirmishing"
+            combat_maneuvers = [
+                "Sneak Strike: Attacks from concealment for high critical potential (stealth | dexterity | target defense)",
+                "Smoke Bomb: Blinds enemies to escape or enter cover (stealth | dexterity | 12)"
+            ]
+        elif highest_tag_lower in ["archery", "marksmanship", "quick_draw", "firearms"]:
+            combat_style = "Precision Ranged Combat"
+            combat_maneuvers = [
+                "Aim Shot: Spends extra time to aim for high-accuracy shooting (combat | dexterity | target defense)",
+                "Quick Draw: Attacks instantly at start of combat (combat | dexterity | target defense)"
+            ]
+        else:
+            combat_style = "Vanguard Martial Combat"
+            combat_maneuvers = [
+                "Power Strike: Delivers a heavy physical blow (combat | strength | target defense)",
+                "Parry & Riposte: Deflects an incoming melee hit and counters (combat | dexterity | target defense)"
+            ]
 
     abilities = AbilitySet()
     for t_name, mod in tags.items():
@@ -427,8 +505,11 @@ Do not include any markdown formatting, thoughts, or text."""
         sentimental_item_story=answers[4],
         abilities=abilities,
         currency=currency,
-        inventory=[starting_item]
+        inventory=[starting_item],
+        combat_style=combat_style,
+        combat_maneuvers=combat_maneuvers
     )
+
     
     if weapon_data:
         w_name = weapon_data.get("name", "Basic Weapon")
@@ -482,6 +563,12 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
             print("Equipped Items:")
             for slot, item in char.equipped.items():
                 print(f" - {slot.upper()}: {item.name} ({item.description})")
+        if char.combat_style:
+            print("Combat Style & Maneuvers:")
+            print(f" - Style: {char.combat_style}")
+            print(" - Maneuvers:")
+            for maneuver in char.combat_maneuvers:
+                print(f"   * {maneuver}")
         print_styled("-" * 40, COLOR_OOC)
         
     elif "quests" in sub:
@@ -671,6 +758,15 @@ Do not include any intro, outro, or metadata. Write only the narrative paragraph
         print(f"Inventory: {', '.join(inv_list)}")
     else:
         print("Inventory: Empty")
+        
+    # 3b. Combat & Capabilities
+    if char.combat_style:
+        print_styled("-" * 45, COLOR_SYSTEM)
+        print_styled("[ Combat & Capabilities ]", COLOR_OOC)
+        print(f"Combat Style: {char.combat_style}")
+        print("Combat Maneuvers:")
+        for maneuver in char.combat_maneuvers:
+            print(f"  - {maneuver}")
         
     # 4. Key Relationships
     if char.relationships:
@@ -947,6 +1043,12 @@ def game_loop(llm_client, campaign_slug: str):
     print_styled(f"\nCampaign: {campaign_slug.replace('-', ' ').title()}", theme.color_title)
     print_styled(f"Genre: {world.setting_genre} | DM Persona Traits: {', '.join(world.dm_traits)}", theme.color_system)
     print_styled(f"Logged in as: {char.name}", theme.color_system)
+    if char.combat_style:
+        print_styled(f"Combat Style: {char.combat_style}", theme.color_system)
+        print_styled(f"Combat Maneuvers:", theme.color_system)
+        for maneuver in char.combat_maneuvers:
+            print_styled(f"  - {maneuver}", theme.color_system)
+        print()
     print_styled(f"Type '/summary' to view status and story recap, 'ooc: help' for stat details, 'quit' to exit.\n", theme.color_system)
     
     # Initial DM description prompt
@@ -957,7 +1059,7 @@ def game_loop(llm_client, campaign_slug: str):
     
     if world.last_narrative:
         response = world.last_narrative
-        print_styled(f"\n{response}", theme.color_dm)
+        print_dm_response(f"\n{response}", theme.color_dm, world.stats_mode)
     else:
         print_styled("\n[System] The DM is preparing your adventure...", theme.color_system)
         
@@ -972,7 +1074,7 @@ def game_loop(llm_client, campaign_slug: str):
         with Halo(text='The DM is narrating...', spinner='dots', color='yellow'):
             response = dm.process_turn(action_prompt)
             
-        print_styled(f"\n{response}", theme.color_dm)
+        print_dm_response(f"\n{response}", theme.color_dm, world.stats_mode)
         
         # Save this narrative in world state and write to disk
         world.last_narrative = response
@@ -1114,7 +1216,7 @@ def game_loop(llm_client, campaign_slug: str):
                 dm.verbose = VERBOSE_GLOBAL
                 response = dm.process_turn(action)
                 
-            print_styled(f"\n{response}", theme.color_dm)
+            print_dm_response(f"\n{response}", theme.color_dm, world.stats_mode)
             active_choices = extract_choices(response)
             
             # Save the last narrative to world state and update it on disk
@@ -1149,7 +1251,7 @@ def game_loop(llm_client, campaign_slug: str):
                     
                     # DM processes miraculous recovery
                     response = dm.process_turn("⚠️ FATAL INJURY: The character has dropped to 0 HP but miraculously survived against all odds (they used their 1-time miracle revival). You MUST resolve this near-death experience contextually based on the story. Narrate how they barely survived, waking up after being saved, captured, or washing ashore. Impose a narrative penalty (e.g. lost gear, time passed, or new scar).")
-                    print_styled(f"\n{response}", theme.color_dm)
+                    print_dm_response(f"\n{response}", theme.color_dm, world.stats_mode)
                     active_choices = extract_choices(response)
                     
                     world.last_narrative = response
@@ -1159,7 +1261,7 @@ def game_loop(llm_client, campaign_slug: str):
                 else:
                     # Permanent death
                     response = dm.process_turn("⚠️ PERMANENT DEATH: The character has dropped to 0 HP and has no miracles remaining. This is a final Game Over. You MUST narrate their tragic, final death based on the immediate context. Do not offer any choices. End the narration by confirming their demise.")
-                    print_styled(f"\n{response}", theme.color_dm)
+                    print_dm_response(f"\n{response}", theme.color_dm, world.stats_mode)
                     print_styled("\n[ GAME OVER - Your story ends here. ]", COLOR_ERROR)
                     break
                 
@@ -1221,6 +1323,22 @@ def run_new_game(llm_client):
     possible_traits = ["sardonic", "gritty", "theatrical", "mysterious", "noir", "dramatic", "poetic", "cynical", "humorous"]
     dm_traits = random.sample(possible_traits, 2)
     
+    # Choose playstyle
+    playstyle = questionary.select(
+        "Choose your playstyle:",
+        choices=[
+            "Narrative Mode (Default) — Stats are hidden. You experience the world through story alone.",
+            "Stats Mode — See dice checks, modifiers, DCs, and outcomes alongside the narrative."
+        ],
+        style=custom_style
+    ).ask()
+    
+    if not playstyle:
+        print_styled("\nNew game cancelled.", COLOR_SYSTEM)
+        return
+        
+    stats_mode_choice = "Stats Mode" in playstyle
+    
     # Run character interview
     char = run_character_creation(llm_client, selected_pitch)
     if not char:
@@ -1257,7 +1375,8 @@ def run_new_game(llm_client):
     world = WorldState(
         setting_genre=extract_genre(selected_pitch),
         setting_description=selected_pitch,
-        dm_traits=dm_traits
+        dm_traits=dm_traits,
+        stats_mode=stats_mode_choice
     )
     
     factions = {"factions": {}, "faction_events": []}

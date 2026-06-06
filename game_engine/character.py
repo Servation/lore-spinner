@@ -23,6 +23,8 @@ class Character:
     relationships: Dict[str, str] = field(default_factory=dict)
     miracles: int = 1  # Number of times the character can miraculously survive a fatal injury
     speed: int = 2     # Used for calculating combat initiative
+    combat_style: str = ""
+    combat_maneuvers: List[str] = field(default_factory=list)
 
     def is_alive(self) -> bool:
         return self.hp > 0
@@ -90,37 +92,51 @@ class Character:
         self.inventory.append(item)
         return None
 
-    def get_effective_modifier(self, tag_name: str, environmental_modifiers: Optional[List[AbilityTag]] = None) -> int:
+    def get_effective_modifier(self, tag_name: str, environmental_modifiers: Optional[List[AbilityTag]] = None, fallback_attribute: Optional[str] = None) -> int:
         """Calculates the combined modifier for a tag name, incorporating:
-        1. Innate ability tag
+        1. Innate ability tag (falls back to fallback_attribute if tag_name is not innate)
         2. Equipped items
         3. Status effects
         4. Environmental modifiers (if passed)
         """
         clean_tag = tag_name.strip().lower()
-        modifier = 0
+        clean_fallback = fallback_attribute.strip().lower() if fallback_attribute else None
         
-        # 1. Innate
-        modifier += self.abilities.get_modifier(clean_tag)
-        
-        # 2. Equipped items
+        # 1. Innate (falls back to clean_fallback if clean_tag is not present in character abilities)
+        innate_mod = 0
+        if clean_tag in self.abilities.tags:
+            innate_mod = self.abilities.get_modifier(clean_tag)
+        elif clean_fallback and clean_fallback in self.abilities.tags:
+            innate_mod = self.abilities.get_modifier(clean_fallback)
+            
+        # 2. Equipped items (check both specific tag and fallback)
+        item_mod = 0
         for slot, item in self.equipped.items():
             if clean_tag in item.tag_modifiers:
-                modifier += item.tag_modifiers[clean_tag]
+                item_mod += item.tag_modifiers[clean_tag]
+            elif clean_fallback and clean_fallback in item.tag_modifiers:
+                item_mod += item.tag_modifiers[clean_fallback]
                 
-        # 3. Status effects
+        # 3. Status effects (check both)
+        status_mod = 0
         for effect in self.status_effects:
             effect_mods = effect.get("modifiers", {})
             if clean_tag in effect_mods:
-                modifier += effect_mods[clean_tag]
+                status_mod += effect_mods[clean_tag]
+            elif clean_fallback and clean_fallback in effect_mods:
+                status_mod += effect_mods[clean_fallback]
                 
-        # 4. Environmental modifiers
+        # 4. Environmental modifiers (check both)
+        env_mod = 0
         if environmental_modifiers:
             for env_tag in environmental_modifiers:
                 if env_tag.name.lower() == clean_tag:
-                    modifier += env_tag.modifier
+                    env_mod += env_tag.modifier
+                elif clean_fallback and env_tag.name.lower() == clean_fallback:
+                    env_mod += env_tag.modifier
                     
-        return modifier
+        return innate_mod + item_mod + status_mod + env_mod
+
 
     def tick_status_effects(self) -> List[str]:
         """Decrements status effect durations. Removes expired ones. Returns list of expired effect names."""
@@ -154,7 +170,9 @@ class Character:
             "position": self.position,
             "relationships": self.relationships,
             "miracles": self.miracles,
-            "speed": self.speed
+            "speed": self.speed,
+            "combat_style": self.combat_style,
+            "combat_maneuvers": self.combat_maneuvers
         }
 
     @classmethod
@@ -180,6 +198,8 @@ class Character:
             position=data.get("position", "Start"),
             relationships=data.get("relationships", {}),
             miracles=data.get("miracles", 1),
-            speed=data.get("speed", 2)
+            speed=data.get("speed", 2),
+            combat_style=data.get("combat_style", ""),
+            combat_maneuvers=data.get("combat_maneuvers", [])
         )
         return char

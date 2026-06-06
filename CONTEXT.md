@@ -56,10 +56,24 @@ The design philosophy where all character mechanics (ability tags, modifiers, di
 - **Wound States**: Character HP is hidden. Instead of numbers, low HP (<75%, <50%, or <25%) is conveyed purely through diegetic flavor text (e.g., bruised, bleeding, limping). These descriptions act as warnings but do not impose hidden mechanical penalties on ability checks.
 
 ### Stats Mode
-An optional playstyle mode chosen at the start of a new campaign that overrides the **Hidden Stats** philosophy. When active, character stats, item modifiers, difficulty classes, and the occurrence of dice rolls are explicitly shown to the player alongside the narrative descriptions to provide a more mechanical experience. However, to preserve the DM's **Narrative Authority**, the exact numerical result of the die roll can be obfuscated or hidden by the DM, preventing the player from seeing when a roll is fudged.
+An optional playstyle mode chosen at the start of a new campaign that overrides the **Hidden Stats** philosophy. When active, character stats, item modifiers, DCs, and dice roll occurrences are shown alongside the narrative via color-coded `[MECHANICS: ...]` blocks (green for success/hits/blocked, red for failure/misses/wounded), while keeping exact raw roll numbers hidden to preserve the DM's Narrative Authority.
 
 ### Difficulty Class (DC)
 A numeric threshold that an ability check must meet or exceed to succeed. DCs are set contextually by the DM or subagents based on the situation (e.g., rusty lock = DC 8, master-forged lock = DC 20).
+
+### Attribute Tags
+A set of 6 broad, baseline characteristics that every character possesses: `strength`, `dexterity`, `intellect`, `fortitude`, `presence`, and `perception`. These are seeded at campaign start based on character backstory and act as fallback modifiers when a check is rolled for a specific skill tag the character does not own.
+
+### Fallback Check System
+The mechanism used during ability checks. When the DM Agent rolls a check, they can specify a specific skill and a fallback attribute (e.g., `lockpicking | dexterity | 15`). If the character lacks the specific skill tag, the engine uses the character's modifier for the fallback attribute instead of defaulting to `+0`.
+
+### Combat Style
+A thematic classification of a character's fighting method (e.g., "Arcane Spellslinging", "Stealthy Daggerplay", "Heavy Melee Brute") derived from their backstory during character creation. It shapes how the DM Agent generates tactical combat choices.
+
+### Combat Maneuvers
+A set of 2-3 specific special moves, spells, or tactics (e.g., "Firebolt", "Parry & Riposte") that a character can perform in combat. These are seeded during character creation and explicitly utilized by the DM Agent when generating tactical combat choices.
+
+
 
 ### Narrative Authority
 The DM Agent's power to override raw mechanical outcomes (dice rolls, ability checks) when doing so serves the story. This allows the DM to "fudge" results for dramatic tension, narrative pacing, or player enjoyment. However, Narrative Authority does NOT permit the DM to hallucinate items the player does not possess or skills they do not have; narrative outcomes must respect the player's factual inventory and ability tag constraints.

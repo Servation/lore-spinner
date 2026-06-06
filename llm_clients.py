@@ -19,6 +19,27 @@ class LLMClient(ABC):
         """
         pass
 
+    def get_default_temperature(self, prompt: str, system_instruction: Optional[str] = None) -> float:
+        """Calculates a sensible default temperature based on the prompt content."""
+        p_lower = prompt.lower()
+        sys_lower = system_instruction.lower() if system_instruction else ""
+        
+        # If it's a structural task (JSON, logs, compaction, tool outputs), use 0.0
+        if ("json" in p_lower or "json" in sys_lower or 
+            "output only" in p_lower or 
+            "compaction" in p_lower or 
+            "summarize the following" in p_lower):
+            return 0.0
+            
+        # If it's a creative task (DM, pitch, character, narrative), use 0.7
+        if ("dungeon master" in sys_lower or "dm" in sys_lower or 
+            "pitch" in p_lower or "character" in p_lower or 
+            "creative" in p_lower or "creative" in sys_lower or
+            "narrate" in p_lower or "narrate" in sys_lower):
+            return 0.7
+            
+        return 0.0
+
 
 class GeminiClient(LLMClient):
     """Client for Google Gemini models using the google-genai SDK."""
@@ -48,7 +69,7 @@ class GeminiClient(LLMClient):
     def generate(self, prompt: str, system_instruction: Optional[str] = None, temperature: Optional[float] = None) -> str:
         temp = temperature
         if temp is None:
-            temp = 0.7 if "pitch" in prompt.lower() or "character" in prompt.lower() else 0.0
+            temp = self.get_default_temperature(prompt, system_instruction)
             
         config = None
         if system_instruction:
@@ -113,7 +134,7 @@ class OpenAIClient(LLMClient):
             messages.append({"role": "system", "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
         
-        temp = temperature if temperature is not None else 0.0
+        temp = temperature if temperature is not None else self.get_default_temperature(prompt, system_instruction)
         
         try:
             response = self.client.chat.completions.create(
@@ -158,7 +179,7 @@ class AnthropicClient(LLMClient):
         self.model_name = model_name
 
     def generate(self, prompt: str, system_instruction: Optional[str] = None, temperature: Optional[float] = None) -> str:
-        temp = temperature if temperature is not None else 0.0
+        temp = temperature if temperature is not None else self.get_default_temperature(prompt, system_instruction)
         
         kwargs = {
             "model": self.model_name,

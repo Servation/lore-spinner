@@ -100,16 +100,26 @@ class DMAgent(BaseAgent):
             return "Active encounter cleared. Combat has ended."
 
         def roll_ability_check(args: str) -> str:
-            """Format: 'tag_name | DC'. E.g. 'stealth | 12' or fallback 'stealth'"""
-            if "|" in args:
-                parts = args.split("|", 1)
-                tag_name = parts[0].strip()
+            """Format: 'tag_name | fallback_attribute | DC' or 'tag_name | DC' or 'tag_name'"""
+            parts = [p.strip() for p in args.split("|")]
+            fallback_attribute = None
+            
+            if len(parts) >= 3:
+                tag_name = parts[0]
+                fallback_attribute = parts[1]
                 try:
-                    dc = int(parts[1].strip())
+                    dc = int(parts[2])
                 except ValueError:
-                    return "Error: DC must be an integer."
+                    return f"Error: DC must be an integer (received: '{parts[2]}')."
+            elif len(parts) == 2:
+                tag_name = parts[0]
+                try:
+                    dc = int(parts[1])
+                except ValueError:
+                    fallback_attribute = parts[1]
+                    dc = 12
             else:
-                tag_name = args.strip()
+                tag_name = parts[0]
                 dc = 12
                 
             # Load character
@@ -125,16 +135,19 @@ class DMAgent(BaseAgent):
             world = WorldState.from_dict(world_data)
             
             # Check modifier
-            mod = char.get_effective_modifier(tag_name, world.environmental_modifiers)
+            mod = char.get_effective_modifier(tag_name, world.environmental_modifiers, fallback_attribute)
             res = roll_check(mod, dc)
             
             # If check succeeded, tick usage (learn-by-doing)
             prog_triggered = False
             new_mod = mod
             if res["success"]:
-                prog_triggered, new_mod, leveled_tag = char.abilities.tick_usage(tag_name)
+                tag_to_tick = tag_name
+                if tag_name not in char.abilities.tags and fallback_attribute in char.abilities.tags:
+                    tag_to_tick = fallback_attribute
+                prog_triggered, new_mod, leveled_tag = char.abilities.tick_usage(tag_to_tick)
                 if prog_triggered:
-                    physical_tags = ["athletics", "combat", "fortitude", "stamina", "melee_weapons", "brawling", "evasion"]
+                    physical_tags = ["athletics", "combat", "fortitude", "stamina", "melee_weapons", "brawling", "evasion", "strength", "dexterity", "fortitude"]
                     if leveled_tag in physical_tags:
                         char.max_hp += 5
                         char.hp += 5
@@ -207,15 +220,17 @@ class DMAgent(BaseAgent):
             if not ae or not ae.get("enemies"):
                 return "Error: No active enemy to fight."
                 
-            from game_engine.combat import Enemy, resolve_combat_round
+            from game_engine.combat import Enemy, Ally, resolve_combat_round
             enemies = [Enemy.from_dict(e_data) for e_data in ae["enemies"]]
+            allies = [Ally.from_dict(a_data) for a_data in ae.get("allies", [])]
             initiative_order = ae.get("initiative_order", [])
             
             # Resolve exchange
-            res = resolve_combat_round(char, action_tag_name, target_index, enemies, initiative_order, world.environmental_modifiers)
+            res = resolve_combat_round(char, action_tag_name, target_index, enemies, initiative_order, world.environmental_modifiers, allies)
             
             # Update objects and save
             ae["enemies"] = [e.to_dict() for e in enemies]
+            ae["allies"] = [a.to_dict() for a in allies]
             if res.get("all_enemies_dead"):
                 enc_data["active_encounter"] = None
                 # Add loot if any exists in recent_loot to player inventory
@@ -791,9 +806,76 @@ class DMAgent(BaseAgent):
             with open(cast_path, "r", encoding="utf-8") as f:
                 return f.read()
 
+        def spawn_ally_in_combat(args: str) -> str:
+            """Spawns a friendly NPC/ally in the current active combat encounter.
+            Format: 'name | threat_level | [weapon_damage]'"""
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 2:
+                return "Error: Format must be 'name | threat_level | [weapon_damage]'"
+            name = parts[0]
+            try:
+                threat = int(parts[1])
+            except ValueError:
+                return "Error: Threat level must be an integer."
+                
+            weapon_damage = "1d6"
+            if len(parts) >= 3:
+                weapon_damage = parts[2]
+                
+            path = os.path.join("saves", self.campaign_slug, "encounters.json")
+            if not os.path.exists(path):
+                return "Error: No active encounter file found."
+                
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                
+            ae = data.get("active_encounter")
+            if not ae or not ae.get("enemies"):
+                return "Error: No active combat encounter setup."
+                
+            from game_engine.combat import Ally
+            from game_engine.dice import roll
+            
+            # Setup ally stats
+            hp = max(1, 3 + threat * 3 + roll(4))
+            speed = 2 + threat
+            defense = 10 + threat
+            
+            new_ally = Ally(
+                name=name,
+                hp=hp,
+                max_hp=hp,
+                threat_level=threat,
+                weapon_damage=weapon_damage,
+                defense=defense,
+                speed=speed
+            )
+            
+            allies = ae.get("allies", [])
+            allies.append(new_ally.to_dict())
+            ae["allies"] = allies
+            
+            # Add to initiative order
+            initiative_order = ae.get("initiative_order", [])
+            ally_id = f"ally_{len(allies) - 1}"
+            initiative_order.append({
+                "id": ally_id,
+                "name": name,
+                "roll": roll(20) + speed
+            })
+            # Sort by roll descending
+            initiative_order.sort(key=lambda x: x["roll"], reverse=True)
+            ae["initiative_order"] = initiative_order
+            
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+                
+            return f"Spawned ally '{name}' (Threat {threat}, HP {hp}) in combat successfully."
+
         return {
             "register_and_move_location": register_and_move_location,
             "query_cast": query_cast,
+            "spawn_ally_in_combat": spawn_ally_in_combat,
             "query_world_bible": query_world_bible,
             "query_unlocked_lore": query_unlocked_lore,
             "get_active_encounter": get_active_encounter,
@@ -831,6 +913,20 @@ class DMAgent(BaseAgent):
             world_data = json.load(f)
         world = WorldState.from_dict(world_data)
         
+        # Load character combat info
+        char_path = os.path.join("saves", self.campaign_slug, "character.json")
+        combat_style = "Standard Fighting"
+        combat_maneuvers_list = "None"
+        if os.path.exists(char_path):
+            try:
+                with open(char_path, "r", encoding="utf-8") as f:
+                    char_data = json.load(f)
+                char = Character.from_dict(char_data)
+                combat_style = char.combat_style
+                combat_maneuvers_list = ", ".join(char.combat_maneuvers)
+            except Exception:
+                pass
+        
         genre = world.setting_genre
         traits = ", ".join(world.dm_traits)
         
@@ -857,7 +953,7 @@ class DMAgent(BaseAgent):
 
         override_rules = ""
         if is_combat:
-            override_rules = "   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing. You MUST dedicate at least one option to actively utilizing the specific 'Current Location' environment (e.g., throwing a tavern chair, pushing an enemy into a hazard, or taking cover behind market stalls). If the player has any physical/combat Ability Tag at +3 or higher, you MUST dedicate one option to a 'Special Maneuver' (e.g., Cleave, Double Attack, Precision Shot) reflecting their high-tier skill. You MUST diegetically describe the danger of the enemy based on their Threat Level (e.g. Threat 1-2 is weak, Threat 3-4 is dangerous, Threat 5+ is terrifyingly powerful). Combat is locked mechanically via encounters.json — you do not need to manually set it."
+            override_rules = f"   - COMBAT OVERRIDE: If in active combat, ALL choices must be tactical combat maneuvers, attacks, spells, or fleeing. You MUST construct the 3-4 tactical choices to explicitly utilize the player's Combat Style: \"{combat_style}\" and their Combat Maneuvers: {combat_maneuvers_list}. For example, ensure at least one option corresponds to utilizing their listed maneuvers (e.g. casting their specific spells or performing their named tricks). You MUST dedicate at least one option to actively utilizing the specific 'Current Location' environment (e.g., throwing a tavern chair, pushing an enemy into a hazard, or taking cover behind market stalls). If the player has any physical/combat Ability Tag at +3 or higher, you MUST dedicate one option to a 'Special Maneuver' (e.g., Cleave, Double Attack, Precision Shot) reflecting their high-tier skill. You MUST diegetically describe the danger of the enemy based on their Threat Level (e.g. Threat 1-2 is weak, Threat 3-4 is dangerous, Threat 5+ is terrifyingly powerful). Combat is locked mechanically via encounters.json — you do not need to manually set it."
         elif world.survival_situation:
             override_rules = "   - SURVIVAL OVERRIDE: If in immediate, life-threatening danger (e.g., drowning, falling, trapped in a fire), you MUST call 'set_override_state: survival | [description of threat]' to lock this mode, and ALL choices must focus on desperately escaping/surviving. When the threat is resolved, call 'set_override_state: clear | survival'."
         elif world.stealth_mission:
@@ -891,6 +987,23 @@ class DMAgent(BaseAgent):
         if not is_combat and not override_rules.startswith("   - DEFAULT EXPLORATION"):
             override_rules += "\n   *BREAKOUT OPTIONS & CUSTOM ACTIONS:*\n   For Stealth, Social, Investigation, Travel, and Camping overrides ONLY, you MUST usually dedicate one option to logically abandoning the task or breaking out of the mode (e.g., \"Abandon the hack and step away from the terminal\", \"Insult the Captain and draw your weapon\", \"Turn back from the road\"). If a player selects this option, or if they type a Custom Action that intentionally ignores the override context to do something drastically different (e.g., pulling a gun mid-negotiation), you must evaluate if the breakout makes narrative sense. If it does, naturally transition the scene, call 'set_override_state: clear | [state]', and trigger the appropriate tools (like 'trigger_encounter_architect' for sudden violence)."
 
+        rule_2_text = "2. NEVER reveal raw numbers, stats, DC values, HP, or rolls in your final Answer. Narrate them flavorfully instead. WOUND STATE RULE: You MUST persistently weave the player's physical condition into your narrative responses (both in combat and exploration) based on their current HP. If HP drops below 75%, describe them as bruised, winded, or scraped. If HP drops below 50%, describe them as bleeding, panting, or limping. If HP drops below 25%, describe them as critically wounded and struggling to survive. This is purely flavor to warn the player; do not impose secret mechanical penalties on their rolls because of low HP."
+        rule_15_text = ""
+        
+        if world.stats_mode:
+            rule_2_text = "2. NEVER reveal raw numbers, stats, DC values, HP, or rolls in your final Answer. Narrate them flavorfully instead. Exception: Stats Mode is active. You MUST include Mechanics Blocks as specified in Rule 15. However, you still must NOT reveal exact HP values or exact roll results in your narrative prose. WOUND STATE RULE: You MUST persistently weave the player's physical condition into your narrative responses (both in combat and exploration) based on their current HP. If HP drops below 75%, describe them as bruised, winded, or scraped. If HP drops below 50%, describe them as bleeding, panting, or limping. If HP drops below 25%, describe them as critically wounded and struggling to survive. This is purely flavor to warn the player; do not impose secret mechanical penalties on their rolls because of low HP."
+            rule_15_text = """
+15. STATS MODE IS ACTIVE. After narrating, you MUST append Mechanics Blocks for EVERY roll you made this turn:
+   - For ability checks (roll_ability_check): Append exactly:
+     [MECHANICS: {Check Name} | {skill} (fallback: {attribute}) +{modifier} | Equipped: {relevant item bonuses} | DC {dc}] ({Success or Failure})
+     (If no fallback attribute was used, omit the " (fallback: {attribute})" section.)
+   - For combat rounds (apply_combat_turn): Append exactly:
+     [MECHANICS: Attack vs {enemy_name} | {tag_name} +{modifier} | Equipped: {weapon bonuses} | DC {enemy_defense}] ({Hit or Miss})
+     [MECHANICS: Defense vs {enemy_name} | defense +{modifier} | Equipped: {armor bonuses}] ({Blocked or Wounded})
+   - The (Success/Failure/Hit/Miss/Blocked/Wounded) label MUST reflect your FINAL narrative decision, not the raw math.
+   - Do NOT reveal the exact number rolled (no "Rolled 14"). The roll result stays hidden.
+   - These blocks MUST appear at the very end of your Answer, after the numbered choices."""
+
         return f"""You are the Dungeon Master (DM) for a text-based RPG set in the genre '{genre}'.
 Your DM personality traits are: {traits}. Maintain this narrative voice and styling at all times!
 
@@ -913,15 +1026,16 @@ What do you do?
 
 Follow these strict DM instructions:
 1. ALWAYS begin each response with the prefix 'Thought:' followed by your tactical plans.
-2. NEVER reveal raw numbers, stats, DC values, HP, or rolls in your final Answer. Narrate them flavorfully instead. WOUND STATE RULE: You MUST persistently weave the player's physical condition into your narrative responses (both in combat and exploration) based on their current HP. If HP drops below 75%, describe them as bruised, winded, or scraped. If HP drops below 50%, describe them as bleeding, panting, or limping. If HP drops below 25%, describe them as critically wounded and struggling to survive. This is purely flavor to warn the player; do not impose secret mechanical penalties on their rolls because of low HP.
+{rule_2_text}
+*DIFFICULTY CLASS (DC) GUIDELINES:* Choose a DC dynamically based on complexity: DC 5 (Very Easy), DC 10 (Easy), DC 15 (Medium), DC 20 (Hard), DC 25 (Very Hard). You MUST select DCs dynamically based on context—do not default to 12.
 3. You have NARRATIVE AUTHORITY: if a dice roll fails by a small margin but success makes the story much more exciting or fun, you can fudge the narrative.
-4. Option Generation: You MUST end every narration by offering exactly 3-4 actionable choices for the player in a numbered list (1, 2, 3, etc.). You must strictly follow these Situational Overrides based on the CURRENT CONTEXT:
+4. Option Generation: You MUST end every narration by offering exactly 3-4 actionable choices for the player in a numbered list (1, 2, 3, etc.). For any option that leads to combat, you MUST explicitly append a warning label like "(Dangerous)", "(Combat)", or "(Risky)" to the option description. You MUST always offer at least one viable non-combat choice (stealth, negotiation, retreat, or detour) so the player is never bottlenecked into unavoidable, sudden violence. You must strictly follow these Situational Overrides based on the CURRENT CONTEXT:
 {override_rules}
    
    {presentation_rule}
 5. Factual Adherence & Lore Accuracy: Do NOT invent observations or contradictory lore. Use 'query_world_bible' and 'query_unlocked_lore' for history, mythos, and secrets. Always call tools if you need to know stats, roll checks, or subagent states.
 6. ALWAYS write a log entry summarizing the outcome via the 'write_log_entry' tool. You MUST wait for the 'Observation:' before outputting your 'Answer:'. NEVER output 'Action:' and 'Answer:' in the same response!
-7. Combat Escalation & Execution: If a situation turns hostile (e.g., the player fails a stealth check, threatens an armed NPC, or is ambushed), you MUST instantly use 'trigger_encounter_architect' to formally start the combat engine. IMPORTANT AMBUSH RULE: When the encounter starts, check the Threat Level and Enemy Count in the Context block. If any enemy is Threat Level 5+ OR if there are 3+ enemies, you MUST NOT instantly attack. Instead, narrate the overwhelming, impending danger (a tense standoff) and offer the player a chance to retreat, hide, or prepare tactically. Only low-threat enemies (Threat 1-3) are allowed to freely ambush the player and throw the first punch. While an Active Encounter exists, you MUST use 'apply_combat_turn' on every single turn to execute the rounds mechanically.
+7. Combat Escalation & Execution: If a situation turns hostile (e.g., the player fails a stealth check, threatens an armed NPC, or is ambushed), you MUST instantly use 'trigger_encounter_architect' to formally start the combat engine. Early Campaign Balance: For Level 1-2 characters, you MUST avoid starting combat unless the player explicitly chooses a hostile option. Keep the opening scenes focused on world-building, exploration, and low-stakes choices. If combat is triggered, scale the narrative describing the enemies as weak, and immediately call 'spawn_ally_in_combat' if a friendly NPC is present to support them. IMPORTANT AMBUSH RULE: When the encounter starts, check the Threat Level and Enemy Count in the Context block. If any enemy is Threat Level 5+ OR if there are 3+ enemies, you MUST NOT instantly attack. Instead, narrate the overwhelming, impending danger (a tense standoff) and offer the player a chance to retreat, hide, or prepare tactically. Only low-threat enemies (Threat 1-3) are allowed to freely ambush the player and throw the first punch. While an Active Encounter exists, you MUST use 'apply_combat_turn' on every single turn to execute the rounds mechanically.
    - LOOT: If `apply_combat_turn` returns `enemy_dead: true` and `loot_dropped`, you MUST explicitly narrate the player finding and looting those items in your Answer!
 8. Crafting is Freeform but Risky: If the player attempts to MacGyver or invent a custom item, verify they have logical materials in their inventory. You MUST call 'roll_ability_check' (e.g., logic, crafting, tinkering) to determine if they succeed.
    - If successful: Remove the materials and add the custom item with appropriate mechanical stats using 'modify_inventory'.
@@ -930,13 +1044,15 @@ Follow these strict DM instructions:
 9. Player Validity & Spatial Limits: Cross-reference all player claims against the Context block (Inventory, Skills). The player can ONLY interact with entities and structures present in their 'Current Location'. If they attempt to use an item they don't have, attempt a feat requiring a skill they don't possess, or interact with something located elsewhere, narrate their mechanical failure and refuse the action.
 10. Contested Resolution: If a player attempts any difficult, risky, or contested action, you MUST call 'roll_ability_check' using the most relevant ability tag. Never let the player narrate their own guaranteed success.
 11. Story Progression, Pacing & Scene Transitions: Always weave 'Local Rumors' or 'Active Quests' into exploration. SCENE TRANSITION RULE: If the player decides to move to a new location within the current town/area (e.g. "I head to the general store" or "I walk to the inn"), you MUST instantly transition the scene to their arrival at that new destination. Do NOT drag out the walk or have NPCs stall them with conversational filler unless there is a scripted ambush. CRITICAL: You MUST call 'register_and_move_location' to mechanically move the player to the new location. If you only narrate the move without calling this tool, the player will rubber-band back to their previous location on the next turn because the engine's map was never updated! Furthermore, when a player succeeds at a quest, weave a diegetic confirmation AND narrate a significant leap forward in the story to avoid boring point-and-click loops. IMPORTANT: If a quest requires turning in an item, you MUST use 'modify_inventory' to remove it, and explicitly instruct 'trigger_lore_keeper' to mark it finished.
-12. Travel Enforcement: The game now uses a strict Node-Graph for travel. The player MUST use the system [Travel] menu to move between locations. If they attempt to "travel to the capital" or walk to a new city via a custom text action, explicitly refuse the action and tell them they must use the [Travel] menu to navigate the map.
+12. Travel Enforcement: The game now uses a strict Node-Graph for travel. The player MUST use the system [Travel] menu to move between locations. In your narrative and choices, do NOT make the [Travel] menu a literal in-universe object (like a magical artifact or mystical interface). Instead, treat it as a standard Out-of-Character UI menu, or frame the option as deciding to begin a journey. If they attempt to "travel to the capital" or walk to a new city via a custom text action, explicitly refuse the action and tell them they must use the [Travel] menu to navigate the map.
 13. World Mechanics (Time & Aspects): Actively enforce 'Active World Aspects' (Nemesis, Heat, Trauma) to impose narrative complications. If the player attempts a long activity (sleeping, crafting, stakeouts), use the 'advance_time' tool to push the world clock forward 2-4 turns.
-14. Character Continuity: When Spine Characters or Promoted NPCs appear in a scene, you MUST use 'query_cast' to get their personality, hidden agenda, and current status. Write their dialogue and behavior consistent with their personality. Subtly foreshadow upcoming story beats through NPC behavior without being heavy-handed (e.g., if The Catalyst has a hidden agenda, show small inconsistencies in their behavior that a perceptive player might notice).
+14. Character Continuity: When Spine Characters or Promoted NPCs appear in a scene, you MUST use 'query_cast' to get their personality, hidden agenda, and current status. Write their dialogue and behavior consistent with their personality. Subtly foreshadow upcoming story beats through NPC behavior without being heavy-handed (e.g., if The Catalyst has a hidden agenda, show small inconsistencies in their behavior that a perceptive player might notice).{rule_15_text}
+16. Allies in Combat: If a companion or friendly NPC accompanies the player into combat, you MUST call 'spawn_ally_in_combat' to register them in the combat system. Do not run their turns manually; the engine will execute their attacks and target allocation automatically via 'apply_combat_turn'.
+
 
 Available Tools:
 [Core]
-- roll_ability_check: Performs a d20 roll check. Format: 'tag_name | DC'. Usage: Action: roll_ability_check: stealth | 12
+- roll_ability_check: Performs a d20 roll check. Format: 'tag_name | fallback_attribute | DC'. Usage: Action: roll_ability_check: lockpicking | dexterity | 15
 - write_log_entry: Writes a narrative log entry for the player. ALWAYS call this right before 'Answer'. Usage: Action: write_log_entry: The player discovered the datapad.
 - heal_character: Restores the character's HP. Usage: Action: heal_character: 10
 - modify_inventory: Adds or removes items. For the description, write a narrative description that implies what the item does without raw numbers (e.g., 'A thick coat' not 'Defense 1'). Format: 'add | Name | [desc] | [slot] | [consumable] | [charges]' or 'remove | Name'. Usage: Action: modify_inventory: add | Healing Salve | A soothing paste that closes wounds | None | True | 2
@@ -948,6 +1064,7 @@ Available Tools:
 - get_active_encounter: Returns active combat details if any. Usage: Action: get_active_encounter
 - clear_active_encounter: Clears the current combat encounter (e.g., if the player successfully flees). Usage: Action: clear_active_encounter
 - trigger_encounter_architect: Queries EncounterArchitect. You MUST include the Current Location and the relevant Active Quest in your query so the encounter is heavily tied to the plot rather than just random filler. Usage: Action: trigger_encounter_architect: spawn an enemy in the Ruins holding the datapad for the smuggler quest
+- spawn_ally_in_combat: Spawns a friendly NPC/ally in the current combat encounter. Format: 'name | threat_level | [weapon_damage]'. Usage: Action: spawn_ally_in_combat: Rhys | 2 | 1d6
 - apply_combat_turn: Resolves a combat round. Format: 'target_index | tag_name'. Usage: Action: apply_combat_turn: 0 | lasers
 
 [World]

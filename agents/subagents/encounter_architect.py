@@ -50,14 +50,9 @@ Your tools are:
                 
             desc = parts[4].strip()
             
-            # Generate the enemy objects
-            enemies = []
-            for i in range(count):
-                enemy = generate_enemy(f"{name} {chr(65+i)}" if count > 1 else name, threat, genre)
-                enemies.append(enemy)
-                
-            # Get player speed to roll initiative
+            # Get player speed and turn_count to roll initiative and scale difficulty
             player_speed = 2
+            turn_count = 1
             char_path = os.path.join("saves", self.campaign_slug, "character.json")
             if os.path.exists(char_path):
                 try:
@@ -66,6 +61,35 @@ Your tools are:
                         player_speed = c_data.get("speed", 2)
                 except Exception:
                     pass
+
+            world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
+            if os.path.exists(world_path):
+                try:
+                    with open(world_path, "r", encoding="utf-8") as f:
+                        w_data = json.load(f)
+                        turn_count = w_data.get("turn_count", 0)
+                except Exception:
+                    pass
+
+            # Clamp difficulty based on turn count to ensure smooth ramp-up in early game
+            if turn_count <= 10:
+                count = min(count, 2)
+                if count > 1:
+                    threat = min(threat, 1)
+                else:
+                    threat = min(threat, 2)
+            elif turn_count <= 25:
+                count = min(count, 3)
+                if count > 1:
+                    threat = min(threat, 2)
+                else:
+                    threat = min(threat, 3)
+            
+            # Generate the enemy objects
+            enemies = []
+            for i in range(count):
+                enemy = generate_enemy(f"{name} {chr(65+i)}" if count > 1 else name, threat, genre)
+                enemies.append(enemy)
                     
             from game_engine.dice import roll
             
