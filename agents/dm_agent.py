@@ -513,12 +513,17 @@ class DMAgent(BaseAgent):
                 
             elif op == "update":
                 desc = parts[2] if len(parts) > 2 else ""
+                updated = False
                 for loc in world.discovered_locations:
                     if loc.name.lower() == name.lower():
                         loc.description = desc
-                        with open(world_path, "w", encoding="utf-8") as f:
-                            json.dump(world.to_dict(), f, indent=4)
-                        return f"Successfully updated location '{name}'."
+                        updated = True
+                        break
+
+                if updated:
+                    with open(world_path, "w", encoding="utf-8") as f:
+                        json.dump(world.to_dict(), f, indent=4)
+                    return f"Successfully updated location '{name}'."
                 return f"Error: Location '{name}' not found."
             else:
                 return "Error: Operation must be 'add' or 'update'."
@@ -536,12 +541,17 @@ class DMAgent(BaseAgent):
             with open(world_path, "r", encoding="utf-8") as f:
                 world = WorldState.from_dict(json.load(f))
                 
+            found_loc_name = None
             for loc in world.discovered_locations:
                 if loc.name.lower() == loc_name.lower():
                     loc.rumors.append(rumor)
-                    with open(world_path, "w", encoding="utf-8") as f:
-                        json.dump(world.to_dict(), f, indent=4)
-                    return f"Added rumor to '{loc.name}'."
+                    found_loc_name = loc.name
+                    break
+
+            if found_loc_name:
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                return f"Added rumor to '{found_loc_name}'."
             return f"Error: Location '{loc_name}' not found."
 
         def resolve_location_rumor(args: str) -> str:
@@ -560,18 +570,26 @@ class DMAgent(BaseAgent):
             with open(world_path, "r", encoding="utf-8") as f:
                 world = WorldState.from_dict(json.load(f))
                 
+            found_loc = None
+            rumor_found = False
             for loc in world.discovered_locations:
                 if loc.name.lower() == loc_name.lower():
+                    found_loc = loc
                     if rumor in loc.rumors:
                         loc.rumors.remove(rumor)
+                        rumor_found = True
                         if escalated:
                             world.escalated_rumors.append(rumor)
-                        with open(world_path, "w", encoding="utf-8") as f:
-                            json.dump(world.to_dict(), f, indent=4)
-                        if escalated:
-                            return f"Escalated rumor from '{loc.name}'. The Lore Keeper will process it."
-                        return f"Resolved/removed rumor from '{loc.name}'."
-                    return f"Error: Rumor not found in '{loc.name}'."
+                    break
+
+            if found_loc:
+                if rumor_found:
+                    with open(world_path, "w", encoding="utf-8") as f:
+                        json.dump(world.to_dict(), f, indent=4)
+                    if escalated:
+                        return f"Escalated rumor from '{found_loc.name}'. The Lore Keeper will process it."
+                    return f"Resolved/removed rumor from '{found_loc.name}'."
+                return f"Error: Rumor not found in '{found_loc.name}'."
             return f"Error: Location '{loc_name}' not found."
 
         def advance_time(turns_str: str) -> str:
@@ -648,12 +666,18 @@ class DMAgent(BaseAgent):
             world_path = os.path.join("saves", self.campaign_slug, "world_state.json")
             with open(world_path, "r", encoding="utf-8") as f:
                 world = WorldState.from_dict(json.load(f))
+
+            found_q_name = None
             for q in world.active_quests:
                 if q.name.lower() == quest_name.lower():
                     world.add_quest_note(q.id, note)
-                    with open(world_path, "w", encoding="utf-8") as f:
-                        json.dump(world.to_dict(), f, indent=4)
-                    return f"Added note to quest '{q.name}'."
+                    found_q_name = q.name
+                    break
+
+            if found_q_name:
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                return f"Added note to quest '{found_q_name}'."
             return f"Error: Quest '{quest_name}' not found."
 
         def set_override_state(args: str) -> str:
