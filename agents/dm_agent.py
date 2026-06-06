@@ -124,13 +124,23 @@ class DMAgent(BaseAgent):
                 return "\n".join(results)
             return f"No lore or secrets found matching '{query}'."
 
+        enc_cache = {"mtime": 0, "data": None}
         def get_active_encounter(dummy: str) -> str:
             path = os.path.join("saves", self.campaign_slug, "encounters.json")
             if not os.path.exists(path):
                 return "No encounter setup."
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            ae = data.get("active_encounter")
+                
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                return "Error: encounters.json could not be accessed."
+                
+            if enc_cache["mtime"] != mtime or enc_cache["data"] is None:
+                with open(path, "r", encoding="utf-8") as f:
+                    enc_cache["data"] = json.load(f)
+                enc_cache["mtime"] = mtime
+                
+            ae = enc_cache["data"].get("active_encounter")
             if not ae:
                 return "No active encounter/fight is currently happening."
             return json.dumps(ae)
@@ -480,13 +490,24 @@ class DMAgent(BaseAgent):
                 
             return f"Successfully used '{target_item.name}': " + ", ".join(effect_msg)
 
+        faction_cache = {"mtime": 0, "data": None}
         def get_faction_details(dummy: str) -> str:
             """Usage: Action: get_faction_details"""
             path = os.path.join("saves", self.campaign_slug, "factions.json")
             if not os.path.exists(path):
                 return "No factions or NPC records found."
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read()
+                
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                return "Error: factions.json could not be accessed."
+                
+            if faction_cache["mtime"] != mtime or faction_cache["data"] is None:
+                with open(path, "r", encoding="utf-8") as f:
+                    faction_cache["data"] = f.read()
+                faction_cache["mtime"] = mtime
+                
+            return faction_cache["data"]
 
         def modify_relationship(args: str) -> str:
             """Format: 'add | Name | Description' or 'remove | Name'
@@ -828,14 +849,25 @@ class DMAgent(BaseAgent):
             
             return f"Successfully moved player to new location: '{loc_name}'."
 
+        cast_cache = {"mtime": 0, "data": None}
         def query_cast(dummy: str) -> str:
             """Returns the full cast of important NPCs (Spine Characters and Promoted NPCs).
             Usage: Action: query_cast"""
             cast_path = os.path.join("saves", self.campaign_slug, "cast.json")
             if not os.path.exists(cast_path):
                 return "No cast file found."
-            with open(cast_path, "r", encoding="utf-8") as f:
-                return f.read()
+                
+            try:
+                mtime = os.path.getmtime(cast_path)
+            except OSError:
+                return "Error: cast.json could not be accessed."
+                
+            if cast_cache["mtime"] != mtime or cast_cache["data"] is None:
+                with open(cast_path, "r", encoding="utf-8") as f:
+                    cast_cache["data"] = f.read()
+                cast_cache["mtime"] = mtime
+                
+            return cast_cache["data"]
 
         return {
             "register_and_move_location": register_and_move_location,
