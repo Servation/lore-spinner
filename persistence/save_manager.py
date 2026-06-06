@@ -67,6 +67,13 @@ class SaveManager:
         with open(os.path.join(campaign_path, "meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=4)
             
+        # Update centralized index
+        index = SaveManager._load_index()
+        # Remove existing entry if it exists
+        index = [s for s in index if s.get("campaign_slug") != slug]
+        index.append(meta)
+        SaveManager._save_index(index)
+
         return slug
 
     @staticmethod
@@ -95,14 +102,42 @@ class SaveManager:
         except Exception:
             return None
 
+
     @staticmethod
-    def list_saves() -> List[dict]:
-        """Lists metadata of all available campaign saves."""
+    def _get_index_path() -> str:
+        return os.path.join(SAVES_DIR, "saves_index.json")
+
+    @staticmethod
+    def _load_index() -> List[dict]:
+        index_path = SaveManager._get_index_path()
+        if os.path.exists(index_path):
+            try:
+                with open(index_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return []
+
+    @staticmethod
+    def _save_index(index_data: List[dict]) -> None:
+        if not os.path.exists(SAVES_DIR):
+            os.makedirs(SAVES_DIR, exist_ok=True)
+        index_path = SaveManager._get_index_path()
+        try:
+            with open(index_path, "w", encoding="utf-8") as f:
+                json.dump(index_data, f, indent=4)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _rebuild_index() -> List[dict]:
         if not os.path.exists(SAVES_DIR):
             return []
             
         saves = []
         for slug in os.listdir(SAVES_DIR):
+            if slug == "saves_index.json":
+                continue
             campaign_path = SaveManager._get_campaign_path(slug)
             meta_path = os.path.join(campaign_path, "meta.json")
             if os.path.isdir(campaign_path) and os.path.exists(meta_path):
@@ -113,10 +148,40 @@ class SaveManager:
                 except Exception:
                     pass
                     
+        SaveManager._save_index(saves)
+        return saves
+
+    @staticmethod
+    def list_saves() -> List[dict]:
+        """Lists metadata of all available campaign saves."""
+        if not os.path.exists(SAVES_DIR):
+            return []
+
+        index_path = SaveManager._get_index_path()
+
+        # If no index, rebuild it
+        if not os.path.exists(index_path):
+            saves = SaveManager._rebuild_index()
+        else:
+            # For O(1) directory validation, we can check the modification time of SAVES_DIR
+            # If the directory was modified (e.g. folder added/removed), we rebuild.
+            # We also check the mtime of the index file itself. If index is older than SAVES_DIR, it's stale.
+            saves_dir_mtime = os.stat(SAVES_DIR).st_mtime
+            index_mtime = os.stat(index_path).st_mtime
+
+            # Additional check: If index_mtime is older than the mtime of ANY meta.json
+            # it means a save was updated but the index wasn't (e.g. manual file edit)
+            # To avoid an O(N) loop here, we rely on the fact that save_game() updates the index.
+            # We will trust the index unless the SAVES_DIR structure changes (detected above).
+
+            if saves_dir_mtime > index_mtime:
+                saves = SaveManager._rebuild_index()
+            else:
+                saves = SaveManager._load_index()
+
         # Sort by last played date descending
         saves.sort(key=lambda x: x.get("last_played", ""), reverse=True)
         return saves
-
     @staticmethod
     def search_saves(query: str) -> List[dict]:
         """Searches campaign saves by campaign name, character name, or genre (case-insensitive)."""
@@ -142,6 +207,12 @@ class SaveManager:
         if os.path.exists(campaign_path):
             try:
                 shutil.rmtree(campaign_path)
+
+                # Update centralized index
+                index = SaveManager._load_index()
+                index = [s for s in index if s.get("campaign_slug") != campaign_slug]
+                SaveManager._save_index(index)
+
                 return True
             except Exception:
                 return False
