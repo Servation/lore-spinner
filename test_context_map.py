@@ -216,6 +216,39 @@ class TestContextMap(unittest.TestCase):
         self.assertIn("Location", summary)
         self.assertIn("Event", summary)
 
+    def test_summary_empty(self):
+        """Test summary output for an empty context map."""
+        summary = self.context_map.summary()
+        self.assertEqual(summary, "Nodes: 0. Edges: 0.")
+
+    def test_summary_exact_counts(self):
+        """Test summary with a small, manually constructed map."""
+        # Add some nodes
+        self.context_map.graph.add_node("char1", type=NODE_TYPE_CHARACTER)
+        self.context_map.graph.add_node("char2", type=NODE_TYPE_CHARACTER)
+        self.context_map.graph.add_node("loc1", type=NODE_TYPE_LOCATION)
+
+        # Add some edges
+        self.context_map.graph.add_edge("char1", "char2", relation="KNOWS")
+        self.context_map.graph.add_edge("char1", "loc1", relation="LOCATED_IN")
+        self.context_map.graph.add_edge("char2", "loc1", relation="LOCATED_IN")
+
+        summary = self.context_map.summary()
+        # Nodes: 2 Character, 1 Location
+        # Edges: 1 KNOWS, 2 LOCATED_IN
+        expected = "Nodes: 2 Character, 1 Location. Edges: 1 KNOWS, 2 LOCATED_IN."
+        self.assertEqual(summary, expected)
+
+    def test_summary_unknown_types(self):
+        """Test summary handles missing type/relation attributes gracefully."""
+        self.context_map.graph.add_node("node1") # Missing 'type'
+        self.context_map.graph.add_node("node2") # Missing 'type'
+
+        self.context_map.graph.add_edge("node1", "node2") # Missing 'relation'
+
+        summary = self.context_map.summary()
+        self.assertEqual(summary, "Nodes: 2 Unknown. Edges: 1 Unknown.")
+
 
 if __name__ == "__main__":
     unittest.main()
