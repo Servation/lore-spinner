@@ -58,8 +58,8 @@ def format_monster_stat_block(data):
 
         # Hit Points and Speed
         result += f"**Hit Points:** {data.get('hit_points', 0)} ({data.get('hit_dice', '')})\n"
-        result += f"**Speed:** {', '.join([f'{k} {v} ft.' for k,
-                                          v in data.get('speed', {}).items()])}\n\n"
+        speed_strs = [f"{k} {v} ft." for k, v in data.get('speed', {}).items()]
+        result += f"**Speed:** {', '.join(speed_strs)}\n\n"
 
         # Ability scores
         if use_tables:
@@ -161,8 +161,8 @@ def format_monster_plain(data):
         result += f", {data.get('alignment', '')}\n"
         result += f"AC: {data.get('armor_class', 0)}, "
         result += f"HP: {data.get('hit_points', 0)} ({data.get('hit_dice', '')})\n"
-        result += f"Speed: {', '.join([f'{k} {v} ft.' for k,
-                                      v in data.get('speed', {}).items()])}\n\n"
+        speed_strs_plain = [f"{k} {v} ft." for k, v in data.get('speed', {}).items()]
+        result += f"Speed: {', '.join(speed_strs_plain)}\n\n"
 
         # Basic stats
         result += f"STR: {data.get('strength', 0)}, "

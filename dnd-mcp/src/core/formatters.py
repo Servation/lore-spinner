@@ -26,8 +26,8 @@ def format_monster_data(data):
         result += "\n"
 
         result += f"**Hit Points:** {data.get('hit_points', 0)} ({data.get('hit_dice', '')})\n"
-        result += f"**Speed:** {', '.join([f'{k} {v} ft.' for k,
-                                          v in data.get('speed', {}).items()])}\n\n"
+        speed_strs = [f"{k} {v} ft." for k, v in data.get('speed', {}).items()]
+        result += f"**Speed:** {', '.join(speed_strs)}\n\n"
 
         # Ability scores
         result += "| STR | DEX | CON | INT | WIS | CHA |\n"
