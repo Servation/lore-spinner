@@ -21,6 +21,9 @@ Dynamic, persistent narrative constraints or entities attached to the World Stat
 - **Trauma / Scars**: Permanent physical or mental conditions affecting the character.
 These are managed by the Lore Keeper and continuously fed to the DM so they impact the active narrative.
 
+### Action Clock (Skill Challenge)
+An immediate, foreground mechanical tracker used exclusively by the DM Agent to pace high-stakes, multi-turn crises (e.g., escaping a collapsing temple, surviving a falling airship). Unlike Doom Clocks or Faction Projects which tick on background Heartbeat cycles, Action Clocks are resolved turn-by-turn during active gameplay and require a set number of successes before a turn limit expires.
+
 ### Faction Weaver
 The subagent responsible for NPC factions, political dynamics, reputation tracking, and faction-driven events. Factions scheme independently on heartbeat cycles.
 
@@ -77,6 +80,9 @@ A set of 2-3 specific special moves, spells, or tactics (e.g., "Firebolt", "Parr
 
 ### Narrative Authority
 The DM Agent's power to override raw mechanical outcomes (dice rolls, ability checks) when doing so serves the story. This allows the DM to "fudge" results for dramatic tension, narrative pacing, or player enjoyment. However, Narrative Authority does NOT permit the DM to hallucinate items the player does not possess or skills they do not have; narrative outcomes must respect the player's factual inventory and ability tag constraints.
+
+### Conceptual Translation
+The design philosophy instructing the DM Agent to conceptually translate genre-specific terminology into high-fantasy equivalents when querying backend D&D 5e systems (e.g., querying 'heavy crossbow' when a player fires a 'sniper rifle', or 'fireball' for a 'plasma grenade'). This ensures mechanical consistency from the D&D 5e SRD across all Setting Pitches (Sci-Fi, Cyberpunk, etc.).
 
 ### Contextual Verification
 The process by which the DM Agent checks the player's stated actions against their current inventory, equipped gear, and active abilities. If the player attempts an action using items or skills they do not possess, the DM enforces narrative constraints, leading to logical in-story setbacks or failures rather than letting the player self-narrate unauthorized capabilities.

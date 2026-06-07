@@ -18,6 +18,9 @@ An immersive, text-based narrative role-playing game powered by a multi-agent AI
   - **Faction Weaver**: Tracks NPC faction standings, agendas, and player reputation.
   - **Encounter Architect**: Creates scaling combat encounters, enemy AI, and loot tables.
   - **Lore Keeper**: Manages world history, quest hooks, and secrets.
+- **Action Clocks**: Immediate, foreground mechanical trackers used by the DM Agent to pace high-stakes, multi-turn crises (e.g., escaping a collapsing temple). The DM sets a target number of successes within a strict turn limit to resolve immediate danger.
+- **D&D 5e Knowledge Base Integration**: Integrated Model Context Protocol (MCP) server providing offline queries to the D&D 5e SRD. The DM Agent uses **Conceptual Translation** to seamlessly map sci-fi or cyberpunk actions (e.g., "sniper rifle") to official fantasy mechanics ("heavy crossbow").
+- **Advantage/Disadvantage & Dynamic Damage**: Full 5e-style advantage and disadvantage mechanics for dice rolls. The DM dynamically overrides ability damage dice for high-power custom narrative spells and maneuvers.
 - **Organic Narrative Memory**: The DM is continuously fed active **Narrative Threads**, unlocked lore details, and secret clues on turn startup, allowing them to organically weave ongoing tasks into the evolving story rather than treating them like rigid checklists.
 - **Autonomous Faction Projects**: Factions independently pursue long-term, background goals (e.g., "Researching a cure"). The Faction Weaver tracks these mechanical countdowns during heartbeats. Upon completion, they fire narrative events and can permanently alter the World State.
 - **Intelligent Option Generation**: The DM intelligently adapts the 4 interactive choices based on context:

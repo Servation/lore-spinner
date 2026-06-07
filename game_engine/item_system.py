@@ -9,6 +9,7 @@ class Item:
     slot: Optional[str] = None  # "weapon", "armor", "accessory", or None (not equipable)
     consumable: bool = False
     charges: int = 0  # for consumable or charged items
+    damage_dice: Optional[str] = None  # e.g., "1d8", "2d6"
 
     def to_dict(self) -> dict:
         return {
@@ -17,7 +18,8 @@ class Item:
             "tag_modifiers": self.tag_modifiers,
             "slot": self.slot,
             "consumable": self.consumable,
-            "charges": self.charges
+            "charges": self.charges,
+            "damage_dice": self.damage_dice
         }
 
     @classmethod
@@ -30,5 +32,6 @@ class Item:
             tag_modifiers=data.get("tag_modifiers", {}),
             slot=data.get("slot"),
             consumable=data.get("consumable", False),
-            charges=data.get("charges", 0)
+            charges=data.get("charges", 0),
+            damage_dice=data.get("damage_dice")
         )

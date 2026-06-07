@@ -23,6 +23,7 @@ from game_engine.ability_system import AbilitySet
 from game_engine.themes import get_theme, VALID_THEMES_LIST
 from agents.dm_agent import DMAgent
 from agents.subagents.lore_keeper import LoreKeeper
+from agents.mcp_client import SyncMCPClient
 
 # Default Terminal Styling Colors
 default_theme = get_theme("default")
@@ -665,26 +666,46 @@ def extract_choices(text: str) -> List[str]:
             is_choice = True
             
         if is_choice:
-            match = re.search(r'\*\*(.*?)\*\*', stripped)
+            bracket_match = re.search(r'\s*(\[[^\]]+\])$', stripped)
+            brackets = f" {bracket_match.group(1)}" if bracket_match else ""
+            
+            if bracket_match:
+                stripped_no_brackets = stripped[:-len(bracket_match.group(0))].rstrip()
+            else:
+                stripped_no_brackets = stripped
+
+            match = re.search(r'\*\*(.*?)\*\*', stripped_no_brackets)
             if match:
-                choices.append(match.group(1).strip())
+                choices.append(match.group(1).strip() + brackets)
             else:
                 choice_text = ""
-                if stripped.startswith(("* ", "- ")):
-                    choice_text = stripped[2:].strip()
-                elif re.match(r"^\d+[\.\)]\s+", stripped):
-                    choice_text = re.split(r"[\.\)]\s+", stripped, 1)[1].strip()
+                if stripped_no_brackets.startswith(("* ", "- ")):
+                    choice_text = stripped_no_brackets[2:].strip()
+                elif re.match(r"^\d+[\.\)]\s+", stripped_no_brackets):
+                    choice_text = re.split(r"[\.\)]\s+", stripped_no_brackets, 1)[1].strip()
                     
                 parts = re.split(r'\s+[-–—]\s+', choice_text, maxsplit=1)
-                choices.append(parts[0].strip().replace("**", ""))
+                choices.append(parts[0].strip().replace("**", "") + brackets)
                 
     return choices
 
 def truncate_choice(text: str, length: int = 80) -> str:
     """Truncates a choice string for the TUI menu so it doesn't wrap off-screen."""
-    if len(text) > length:
-        return text[:length-3] + "..."
-    return text
+    import re
+    if len(text) <= length:
+        return text
+        
+    match = re.search(r'\s*(\[[^\]]+\])$', text)
+    if match:
+        brackets = match.group(1)
+        brackets_len = len(brackets)
+        desc_part = text[:-brackets_len].rstrip()
+        avail_len = length - brackets_len - 4
+        if avail_len > 0:
+            return f"{desc_part[:avail_len]}... {brackets}"
+        else:
+            return text[:length-3] + "..."
+    return text[:length-3] + "..."
 
 def show_campaign_summary(campaign_slug: str, llm_client):
     """Compiles and displays a comprehensive, immersive summary of the player's status and story."""
@@ -1032,7 +1053,8 @@ def game_loop(llm_client, campaign_slug: str):
     char = Character.from_dict(char_data)
     world = WorldState.from_dict(world_data)
     
-    dm = DMAgent(llm_client, campaign_slug, budget_mode=BUDGET_MODE_GLOBAL, verbose=VERBOSE_GLOBAL)
+    global mcp_client_global
+    dm = DMAgent(llm_client, campaign_slug, budget_mode=BUDGET_MODE_GLOBAL, verbose=VERBOSE_GLOBAL, mcp_client=mcp_client_global)
     
     current_loc = next((l for l in world.discovered_locations if l.id == world.current_location_id), None)
     theme_name = current_loc.theme if current_loc else "default"
@@ -1495,6 +1517,18 @@ def main():
     if args.verbose:
         VERBOSE_GLOBAL = True
         
+    global mcp_client_global
+    mcp_client_global = None
+    try:
+        print_styled("Initializing D&D MCP Knowledge Base...", COLOR_SYSTEM)
+        server_path = os.path.abspath(os.path.join("dnd-mcp", "dnd_mcp_server.py"))
+        orig_cwd = os.getcwd()
+        os.chdir("dnd-mcp")
+        mcp_client_global = SyncMCPClient("dnd_mcp_server.py", cwd=os.getcwd())
+        os.chdir(orig_cwd)
+    except Exception as e:
+        print_styled(f"Failed to initialize MCP Server: {e}", COLOR_ERROR)
+        
     # Setup LLM configuration
     model_name = args.model
     if not model_name:
@@ -1531,6 +1565,8 @@ def main():
             run_settings()
         elif choice.startswith("6"):
             print_styled("May your path be clear. Farewell!", COLOR_TITLE)
+            if mcp_client_global:
+                mcp_client_global.close()
             break
 
 if __name__ == "__main__":

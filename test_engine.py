@@ -659,7 +659,7 @@ def test_stats_mode():
     SaveManager.delete_save(slug_no_stats)
     
     # 5. UI output parsing checks (simulate print_dm_response outcomes)
-    from main import print_dm_response
+    from main import print_dm_response, extract_choices, truncate_choice
     import io
     from contextlib import redirect_stdout
     
@@ -686,6 +686,23 @@ def test_stats_mode():
     assert "MECHANICS:" not in output
     assert "You open the chest." in output
     assert "Inside, you find gold." in output
+    
+    # 6. Choice extraction with mechanics brackets
+    choice_text = "1. **Force the door open** [Athletics | strength +1 | DC 15]\n2. * Listen carefully [Perception | perception +2 | DC 10]\n3. Walk away"
+    extracted = extract_choices(choice_text)
+    assert len(extracted) == 3
+    assert extracted[0] == "Force the door open [Athletics | strength +1 | DC 15]"
+    assert extracted[1] == "* Listen carefully [Perception | perception +2 | DC 10]"
+    assert extracted[2] == "Walk away"
+    
+    # 7. Choice truncation with mechanics brackets
+    long_choice = "Climb the extremely tall, treacherous stone wall and sneak in through the heavily guarded window [Athletics | strength +1 | DC 15]"
+    # length of long_choice is 130
+    truncated = truncate_choice(long_choice, length=80)
+    assert len(truncated) <= 80
+    assert truncated.endswith("[Athletics | strength +1 | DC 15]")
+    assert "..." in truncated
+    assert "Climb the extremely" in truncated
     
     print("[OK] Stats Mode tests passed.")
 

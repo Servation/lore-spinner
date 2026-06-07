@@ -8,9 +8,19 @@ def roll(sides: int) -> int:
         return 0
     return random.randint(1, sides)
 
-def roll_check(modifier: int, difficulty_class: int) -> Dict[str, Any]:
+def roll_check(modifier: int, difficulty_class: int, advantage: bool = False, disadvantage: bool = False) -> Dict[str, Any]:
     """Resolves a d20 roll check against a target difficulty class."""
-    d20_roll = roll(20)
+    rolls = [roll(20)]
+    
+    if advantage and not disadvantage:
+        rolls.append(roll(20))
+        d20_roll = max(rolls)
+    elif disadvantage and not advantage:
+        rolls.append(roll(20))
+        d20_roll = min(rolls)
+    else:
+        d20_roll = rolls[0]
+        
     total = d20_roll + modifier
     success = total >= difficulty_class
     margin = total - difficulty_class
@@ -25,13 +35,16 @@ def roll_check(modifier: int, difficulty_class: int) -> Dict[str, Any]:
         
     return {
         "roll": d20_roll,
+        "raw_rolls": rolls,
         "modifier": modifier,
         "total": total,
         "dc": difficulty_class,
         "success": success,
         "margin": margin,
         "critical_success": critical_success,
-        "critical_failure": critical_failure
+        "critical_failure": critical_failure,
+        "advantage": advantage,
+        "disadvantage": disadvantage
     }
 
 def roll_damage(dice_expr: str) -> Tuple[int, str]:

@@ -187,6 +187,42 @@ class StorySpine:
 
 
 @dataclass
+class ActionClock:
+    name: str = ""
+    description: str = ""
+    required_successes: int = 0
+    current_successes: int = 0
+    max_turns: int = 0
+    turns_passed: int = 0
+    is_active: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "required_successes": self.required_successes,
+            "current_successes": self.current_successes,
+            "max_turns": self.max_turns,
+            "turns_passed": self.turns_passed,
+            "is_active": self.is_active
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ActionClock":
+        if not data:
+            return cls()
+        return cls(
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            required_successes=data.get("required_successes", 0),
+            current_successes=data.get("current_successes", 0),
+            max_turns=data.get("max_turns", 0),
+            turns_passed=data.get("turns_passed", 0),
+            is_active=data.get("is_active", False)
+        )
+
+
+@dataclass
 class WorldState:
     setting_genre: str = "Fantasy"
     story_spine: StorySpine = field(default_factory=StorySpine)
@@ -223,6 +259,7 @@ class WorldState:
     last_beat_id: int = -1                      # The beat ID from the previous heartbeat check
     pressure_cooldown: int = 0                  # Turns remaining before the Critic can escalate again
     recent_player_actions: List[str] = field(default_factory=list)  # Rolling buffer of last 5 raw player action strings
+    action_clock: ActionClock = field(default_factory=ActionClock)  # Immediate foreground challenge tracker
 
     TIMES_OF_DAY = ["Morning", "Noon", "Afternoon", "Dusk", "Night", "Midnight"]
 
@@ -327,7 +364,8 @@ class WorldState:
             "turns_on_current_beat": self.turns_on_current_beat,
             "last_beat_id": self.last_beat_id,
             "pressure_cooldown": self.pressure_cooldown,
-            "recent_player_actions": self.recent_player_actions
+            "recent_player_actions": self.recent_player_actions,
+            "action_clock": self.action_clock.to_dict()
         }
 
     @classmethod
@@ -379,5 +417,6 @@ class WorldState:
             turns_on_current_beat=data.get("turns_on_current_beat", 0),
             last_beat_id=data.get("last_beat_id", -1),
             pressure_cooldown=data.get("pressure_cooldown", 0),
-            recent_player_actions=data.get("recent_player_actions", [])
+            recent_player_actions=data.get("recent_player_actions", []),
+            action_clock=ActionClock.from_dict(data.get("action_clock", {}))
         )

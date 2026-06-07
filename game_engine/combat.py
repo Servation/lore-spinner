@@ -154,7 +154,9 @@ def resolve_combat_round(
     enemies: List[Enemy], 
     initiative_order: List[Dict[str, Any]],
     environmental_modifiers: Optional[List[AbilityTag]] = None,
-    allies: Optional[List[Ally]] = None
+    allies: Optional[List[Ally]] = None,
+    advantage_flag: Optional[str] = None,
+    override_damage_dice: Optional[str] = None
 ) -> Dict[str, Any]:
     """Resolves a full round of combat for all participants based on initiative order.
     
@@ -201,7 +203,10 @@ def resolve_combat_round(
                 continue
                 
             player_mod = character.get_effective_modifier(action_tag_name, environmental_modifiers)
-            check_res = roll_check(player_mod, target.defense)
+            
+            adv = advantage_flag == "adv"
+            dis = advantage_flag == "dis"
+            check_res = roll_check(player_mod, target.defense, advantage=adv, disadvantage=dis)
             
             event = {
                 "actor": "player",
@@ -213,19 +218,28 @@ def resolve_combat_round(
             }
             
             if check_res["success"]:
-                # Calculate damage based on equipped weapon or default 1d6
-                weapon = character.equipped.get("weapon")
-                dmg_expr = "1d6"
-                if weapon and "damage" in weapon.tag_modifiers:
-                    dmg_expr = f"1d6+{weapon.tag_modifiers['damage']}"
-                elif action_tag_name.lower() in ["spellcasting", "lasers"]:
-                    dmg_expr = "1d8"
-                    
+                # 1. Start with the explicit override passed from the DM Tool
+                dmg_expr = override_damage_dice
+                
+                # 2. If no override, check for equipped weapon
+                if not dmg_expr:
+                    weapon = character.equipped.get("weapon")
+                    if weapon and getattr(weapon, "damage_dice", None):
+                        dmg_expr = weapon.damage_dice
+                    elif weapon and "damage" in weapon.tag_modifiers:
+                        dmg_expr = f"1d6+{weapon.tag_modifiers['damage']}"
+                    elif action_tag_name.lower() in ["spellcasting", "lasers"]:
+                        dmg_expr = "1d8"
+                    else:
+                        dmg_expr = "1d6"
+                        
                 dmg, dmg_detail = roll_damage(dmg_expr)
-                bonus = max(0, player_mod // 2)
+                bonus = max(0, player_mod)
                 if bonus > 0:
                     dmg += bonus
-                    dmg_detail += f" + {bonus} (tag bonus)"
+                    dmg_detail += f" + {bonus} (stat mod)"
+                    
+                dmg = max(1, dmg) # Minimum 1 damage on hit
                     
                 dmg_taken = target.take_damage(dmg)
                 event["damage"] = dmg_taken
