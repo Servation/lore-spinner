@@ -1078,6 +1078,18 @@ class DMAgent(BaseAgent):
             self.save_mgr.save_state("world", world.to_dict())
             return status
 
+        def resolve_journey_node(args: str) -> str:
+            world = WorldState.from_dict(self.save_mgr.load_state("world"))
+            if not world.active_journey:
+                return "Error: No active journey."
+            jmap = world.active_journey
+            current_node = jmap.get_current_node()
+            if not current_node:
+                return "Error: No current node in active journey."
+            current_node.resolved = True
+            self.save_mgr.save_state("world", world.to_dict())
+            return f"Journey node '{current_node.name}' has been marked as resolved. The player will now navigate to the next node."
+
         return {
             "register_and_move_location": register_and_move_location,
             "query_cast": query_cast,
@@ -1112,7 +1124,8 @@ class DMAgent(BaseAgent):
             "query_world_bible": query_world_bible,
             "query_unlocked_lore": query_unlocked_lore,
             "start_action_clock": start_action_clock,
-            "update_action_clock": update_action_clock
+            "update_action_clock": update_action_clock,
+            "resolve_journey_node": resolve_journey_node
         }
 
     def _build_dynamic_prompt(self) -> str:
@@ -1305,6 +1318,7 @@ Available Tools:
 - resolve_location_rumor: Removes a rumor from a location once handled. If escalated is true, the rumor is sent to the Lore Keeper to become a main story quest. Format: 'Location Name | Rumor | true/false'. Usage: Action: resolve_location_rumor: The Spire | Barkeep is suspicious | true
 - modify_world_aspect: Modifies world aspects. Format: 'add | name | type | desc | [intensity]' or 'remove | name'. Usage: Action: modify_world_aspect: add | High Heat | Trauma | Guard patrols everywhere | 2
 - add_quest_note: Adds a note to an active quest. Format: 'quest_id | note string'. Usage: Action: add_quest_note: murder_mystery | The victim was poisoned.
+- resolve_journey_node: Marks the player's current journey map node as resolved so they can travel to the next node. Call this ONLY when the player has defeated the enemies, bypassed the hazard, or explicitly finished interacting with an event node. Usage: Action: resolve_journey_node
 - set_override_state: Applies or clears a narrative lock. Format: 'state | desc' or 'clear | state'. Valid states: survival, social, stealth, investigation, travel, camping. Usage: Action: set_override_state: stealth | The Corporate compound
 - start_action_clock: Starts an immediate foreground crisis that takes multiple turns to resolve. Format: 'name | description | required_successes | max_turns'. Usage: Action: start_action_clock: Airship Fall | Escaping the crashing ship | 3 | 5
 - update_action_clock: Updates the active action clock. Format: 'successes_delta' (usually 1 or 0). Usage: Action: update_action_clock: 1
@@ -1687,14 +1701,27 @@ Available Tools:
                 f"NOTE: If the player attempts a custom action that intentionally breaks this context, transition the scene and clear this state.\n"
                 f"Context: {context_str}"
             )
+        elif world.active_journey and world.active_journey.get_current_node() and not world.active_journey.get_current_node().resolved:
+            jmap = world.active_journey
+            current_node = jmap.get_current_node()
+            query = (
+                f"⚠️ ACTIVE JOURNEY NODE OVERRIDE IS MANDATORY. "
+                f"Node Name: '{current_node.name}' (Type: {current_node.type}). "
+                f"Description: {current_node.description}. "
+                f"The player is currently trying to survive or resolve this specific node on their journey to {jmap.destination_name}. "
+                f"The player attempted: '{player_action}'. "
+                f"ALL options MUST be focused on interacting with this node's event, combat, hazard, or camp. "
+                f"When the player defeats the enemies, bypasses the hazard, or finishes interacting, you MUST call 'resolve_journey_node' to mark the node as completed so they can move on.\n"
+                f"Context: {context_str}"
+            )
         elif world.travel_journey:
-            # Travel override — player is on a road trip between locations
+            # Legacy Travel override
             query = (
                 f"⚠️ TRAVEL JOURNEY — TRAVEL OVERRIDE IS MANDATORY. "
                 f"Route: {world.travel_journey}. "
                 f"The player attempted: '{player_action}'. "
                 f"ALL options MUST be focused on the journey (foraging, making camp, dealing with roadside events/hazards). Do not offer full location exploration until they arrive. "
-                f"When the player finally arrives at the destination, you MUST call 'set_override_state: clear | travel' to end this lock.\n"
+                f"When the journey is complete, you MUST call 'set_override_state: clear | travel' to end this lock.\n"
                 f"NOTE: If the player attempts a custom action to abandon the journey and turn back, transition the scene and clear this state.\n"
                 f"Context: {context_str}"
             )

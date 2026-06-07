@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from game_engine.ability_system import AbilityTag
+from game_engine.journey import JourneyMap
 
 @dataclass
 class Quest:
@@ -260,6 +261,7 @@ class WorldState:
     pressure_cooldown: int = 0                  # Turns remaining before the Critic can escalate again
     recent_player_actions: List[str] = field(default_factory=list)  # Rolling buffer of last 5 raw player action strings
     action_clock: ActionClock = field(default_factory=ActionClock)  # Immediate foreground challenge tracker
+    active_journey: Optional[JourneyMap] = None
 
     TIMES_OF_DAY = ["Morning", "Noon", "Afternoon", "Dusk", "Night", "Midnight"]
 
@@ -365,7 +367,8 @@ class WorldState:
             "last_beat_id": self.last_beat_id,
             "pressure_cooldown": self.pressure_cooldown,
             "recent_player_actions": self.recent_player_actions,
-            "action_clock": self.action_clock.to_dict()
+            "action_clock": self.action_clock.to_dict(),
+            "active_journey": self.active_journey.to_dict() if self.active_journey else None
         }
 
     @classmethod
@@ -418,5 +421,6 @@ class WorldState:
             last_beat_id=data.get("last_beat_id", -1),
             pressure_cooldown=data.get("pressure_cooldown", 0),
             recent_player_actions=data.get("recent_player_actions", []),
-            action_clock=ActionClock.from_dict(data.get("action_clock", {}))
+            action_clock=ActionClock.from_dict(data.get("action_clock", {})),
+            active_journey=JourneyMap.from_dict(data.get("active_journey")) if data.get("active_journey") else None
         )

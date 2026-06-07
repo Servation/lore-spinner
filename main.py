@@ -948,12 +948,23 @@ def run_travel_mode(llm_client, campaign_slug: str, world: WorldState) -> None:
         # The name was appended with (Type), so we need to match carefully or just by string
         dest = next((l for l in other_locs if choice.startswith(f"Travel to: {l.name}")), None)
         if dest:
-            world.current_location_id = dest.id
-            world.turn_count += 1
-            world_path = os.path.join("saves", campaign_slug, "world_state.json")
-            with open(world_path, "w", encoding="utf-8") as f:
-                json.dump(world.to_dict(), f, indent=4)
-            print_styled(f"\nYou travel to {dest.name}.", theme.color_ooc)
+            from game_engine.journey import generate_journey_map
+            print_styled(f"\nCharting a course to {dest.name}...", theme.color_system)
+            with Halo(text='Generating journey map...', spinner='dots', color='yellow'):
+                jmap = generate_journey_map(llm_client, current.name, dest.id, dest.name, world.setting_genre)
+            if jmap:
+                world.active_journey = jmap
+                world_path = os.path.join("saves", campaign_slug, "world_state.json")
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                print_styled(f"\nYou begin your journey to {dest.name}.", theme.color_ooc)
+            else:
+                print_styled("Failed to generate journey map. Fast traveling instead...", COLOR_ERROR)
+                world.current_location_id = dest.id
+                world.turn_count += 1
+                world_path = os.path.join("saves", campaign_slug, "world_state.json")
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
             return
 
 def initialize_world(llm_client, campaign_slug: str) -> bool:
@@ -1115,14 +1126,47 @@ def game_loop(llm_client, campaign_slug: str):
             theme_name = current_loc.theme if current_loc else "default"
             theme = get_theme(theme_name)
             
-            display_choices = [truncate_choice(c) for c in active_choices]
-            choices = display_choices + [
-                questionary.Separator(),
-                "Type custom action...",
-                "View Character Profile",
-                "Travel (Move to new location)",
-                "System Menu..."
-            ]
+            if world.active_journey:
+                from game_engine.journey import render_journey_map
+                jmap = world.active_journey
+                current_node = jmap.get_current_node()
+                
+                if not current_node or current_node.resolved:
+                    render_journey_map(jmap, theme)
+                    
+                    available_ids = jmap.layers[0] if not current_node else current_node.connections
+                        
+                    if not available_ids:
+                        print_styled(f"\nYou have arrived at {jmap.destination_name}!", theme.color_system)
+                        world.current_location_id = jmap.destination_location_id
+                        world.active_journey = None
+                        world.turn_count += 1
+                        action = f"I have finally arrived at {jmap.destination_name} after a long journey. Narrate my arrival."
+                        break
+                        
+                    choices = [f"Journey Path: [{jmap.nodes[nid].type}] {jmap.nodes[nid].name}" for nid in available_ids]
+                    choices += [
+                        questionary.Separator(),
+                        "View Character Profile",
+                        "System Menu..."
+                    ]
+                else:
+                    display_choices = [truncate_choice(c) for c in active_choices]
+                    choices = display_choices + [
+                        questionary.Separator(),
+                        "Type custom action...",
+                        "View Character Profile",
+                        "System Menu..."
+                    ]
+            else:
+                display_choices = [truncate_choice(c) for c in active_choices]
+                choices = display_choices + [
+                    questionary.Separator(),
+                    "Type custom action...",
+                    "View Character Profile",
+                    "Travel (Move to new location)",
+                    "System Menu..."
+                ]
             
             choice = questionary.select(
                 "What do you do?",
@@ -1163,6 +1207,20 @@ def game_loop(llm_client, campaign_slug: str):
                     style=theme.q_style
                 )
                 if not action: continue
+            elif choice.startswith("Journey Path: "):
+                jmap = world.active_journey
+                current_node = jmap.get_current_node()
+                available_ids = jmap.layers[0] if not current_node else current_node.connections
+                
+                chosen_node = next(jmap.nodes[nid] for nid in available_ids if choice.startswith(f"Journey Path: [{jmap.nodes[nid].type}] {jmap.nodes[nid].name}"))
+                jmap.current_node_id = chosen_node.id
+                
+                world_path = os.path.join("saves", campaign_slug, "world_state.json")
+                with open(world_path, "w", encoding="utf-8") as f:
+                    json.dump(world.to_dict(), f, indent=4)
+                    
+                action = f"I travel to the next node on my journey: '{chosen_node.name}' (Type: {chosen_node.type}). Description: {chosen_node.description}. Narrate my arrival and whatever encounter or event awaits me here."
+                break
             elif choice == "Travel (Move to new location)":
                 run_travel_mode(llm_client, campaign_slug, world)
                 # After travel, trigger DM to narrate arrival
