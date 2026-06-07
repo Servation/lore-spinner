@@ -18,6 +18,7 @@ You run in a ReAct loop. If queried on a heartbeat:
 1. Review the factions, reputations, and active clocks.
 2. Advance plots or register new clocks using tools.
 3. Output your final Answer summarizing what faction plots developed.
+CRITICAL RULE: A faction should NEVER have more than 1 or 2 active project clocks at a time. If a faction already has active clocks, do NOT register new ones. Instead, add flavor events or wait for them to resolve.
 
 Your tools are:
 - update_reputation: Modifies player reputation with a faction. Format: 'faction_id | change_amount'. Usage: Action: update_reputation: rebels | 5
