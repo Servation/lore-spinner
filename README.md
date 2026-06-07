@@ -50,6 +50,7 @@ Run the following command to install the required packages:
 ```bash
 pip install -r requirements.txt
 ```
+*(Note: If you encounter a permission error on Windows, try adding the `--user` flag: `pip install --user -r requirements.txt`, or run your terminal as an Administrator).*
 
 ### 3. Environment Configuration
 Copy `.env.template` to a new file named `.env`:
