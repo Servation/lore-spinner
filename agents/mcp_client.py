@@ -33,7 +33,7 @@ class SyncMCPClient:
         env = os.environ.copy()
         
         server_params = StdioServerParameters(
-            command="python",
+            command=sys.executable,
             args=[self.server_script],
             env=env
         )
