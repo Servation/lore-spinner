@@ -1419,3 +1419,36 @@
 2026-06-07 03:16:42,957 - src.core.resources - DEBUG - Prefetching item details: spells/blight
 2026-06-07 03:16:42,959 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
 2026-06-07 03:16:42,959 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 23:12:20,242 - mcp.server.lowlevel.server - DEBUG - Initializing server 'dnd-knowledge-navigator'
+2026-06-07 23:12:20,242 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListToolsRequest
+2026-06-07 23:12:20,243 - mcp.server.lowlevel.server - DEBUG - Registering handler for CallToolRequest
+2026-06-07 23:12:20,243 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListResourcesRequest
+2026-06-07 23:12:20,243 - mcp.server.lowlevel.server - DEBUG - Registering handler for ReadResourceRequest
+2026-06-07 23:12:20,243 - mcp.server.lowlevel.server - DEBUG - Registering handler for PromptListRequest
+2026-06-07 23:12:20,243 - mcp.server.lowlevel.server - DEBUG - Registering handler for GetPromptRequest
+2026-06-07 23:12:20,243 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListResourceTemplatesRequest
+2026-06-07 23:12:20,244 - src.core.cache - DEBUG - Initialized API cache with TTL of 24 hours (persistent: True)
+2026-06-07 23:12:20,245 - src.core.resources - INFO - Prefetching items for category: spells
+2026-06-07 23:12:20,245 - src.core.cache - DEBUG - Cache miss for key: dnd_items_spells
+2026-06-07 23:12:20,245 - src.core.resources - DEBUG - Fetching item list for category: spells
+2026-06-07 23:12:20,246 - src.core.resources - INFO - Prefetching items for category: equipment
+2026-06-07 23:12:20,246 - src.core.cache - DEBUG - Cache miss for key: dnd_items_equipment
+2026-06-07 23:12:20,246 - src.core.resources - DEBUG - Fetching item list for category: equipment
+2026-06-07 23:12:20,248 - src.core.resources - INFO - Prefetching items for category: monsters
+2026-06-07 23:12:20,248 - src.core.cache - DEBUG - Cache miss for key: dnd_items_monsters
+2026-06-07 23:12:20,248 - src.core.resources - DEBUG - Fetching item list for category: monsters
+2026-06-07 23:12:20,251 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 23:12:20,252 - src.core.resources - INFO - Prefetching items for category: classes
+2026-06-07 23:12:20,252 - src.core.cache - DEBUG - Cache miss for key: dnd_items_classes
+2026-06-07 23:12:20,253 - src.core.resources - INFO - Prefetching items for category: races
+2026-06-07 23:12:20,253 - src.core.resources - DEBUG - Fetching item list for category: classes
+2026-06-07 23:12:20,253 - src.core.cache - DEBUG - Cache miss for key: dnd_items_races
+2026-06-07 23:12:20,254 - mcp.server.fastmcp.resources.resource_manager - DEBUG - Adding resource
+2026-06-07 23:12:20,256 - src.core.resources - DEBUG - Fetching item list for category: races
+2026-06-07 23:12:20,267 - mcp.server.fastmcp.resources.resource_manager - DEBUG - Adding resource
+2026-06-07 23:12:20,267 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 23:12:20,269 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 23:12:20,270 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 23:12:20,272 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 23:12:20,325 - asyncio - DEBUG - Using selector: EpollSelector
+2026-06-07 23:12:20,335 - mcp.server.lowlevel.server - DEBUG - Received message: root=InitializedNotification(method='notifications/initialized', params=None, jsonrpc='2.0')
