@@ -867,10 +867,7 @@ Do not include any intro, outro, or metadata. Write only the narrative paragraph
                         npc_str = f" (NPCs: {', '.join(npc_names)})" if npc_names else ""
                         print(f" - {f_info.get('name', f_id)}: Reputation {f_info.get('reputation', 0)}{npc_str}")
                         
-                        clocks = f_info.get("clocks", [])
-                        if clocks:
-                            for clock in clocks:
-                                print(f"    * PROJECT CLOCK: {clock['name']} - {clock['description']} ({clock['turns_remaining']} turns remaining)")
+                        # Project clocks are intentionally hidden from the player summary to reduce clutter and meta-gaming
                                 
                 if events:
                     print("\nRecent Faction Events:")
@@ -1122,7 +1119,7 @@ def game_loop(llm_client, campaign_slug: str):
             choices = display_choices + [
                 questionary.Separator(),
                 "Type custom action...",
-                "Check Inventory",
+                "View Character Profile",
                 "Travel (Move to new location)",
                 "System Menu..."
             ]
@@ -1170,14 +1167,40 @@ def game_loop(llm_client, campaign_slug: str):
                 run_travel_mode(llm_client, campaign_slug, world)
                 # After travel, trigger DM to narrate arrival
                 action = "I have traveled to a new location. Narrate my arrival and what I see."
-            elif choice == "Check Inventory":
-                print_styled(f"\n--- Inventory ---", theme.color_system)
+            elif choice == "View Character Profile":
+                # Reload char to avoid stale data
+                char_path = os.path.join("saves", campaign_slug, "character.json")
+                if os.path.exists(char_path):
+                    with open(char_path, "r", encoding="utf-8") as f:
+                        char = Character.from_dict(json.load(f))
+                
+                print_styled(f"\n--- {char.name}'s Profile ---", theme.color_system)
+                hp_pct = (char.hp / max(char.max_hp, 1)) * 100
+                cond = "Healthy" if hp_pct >= 80 else "Wounded" if hp_pct >= 40 else "Near Death"
+                print(f"Appearance: {char.appearance}")
+                print(f"Condition: {cond} ({char.hp}/{char.max_hp} HP)")
                 print(f"Currency: {char.currency}")
+                
+                print_styled("\n[ Equipment ]", theme.color_ooc)
+                if char.equipped:
+                    for slot, item in char.equipped.items():
+                        print(f" - {slot.upper()}: {item.name}")
+                else:
+                    print(" - Nothing equipped.")
+                    
+                print_styled("\n[ Inventory ]", theme.color_ooc)
                 if not char.inventory:
-                    print("Your pockets are empty.")
+                    print(" - Your pockets are empty.")
                 for item in char.inventory:
                     print(f" - {item.name}: {item.description} (Slot: {item.slot or 'None'})")
-                print_styled("-" * 17, theme.color_system)
+                    
+                if char.combat_style:
+                    print_styled("\n[ Combat & Capabilities ]", theme.color_ooc)
+                    print(f" Style: {char.combat_style}")
+                    if char.combat_maneuvers:
+                        print(" Maneuvers: " + ", ".join(char.combat_maneuvers))
+                    
+                print_styled("-" * 30 + "\n", theme.color_system)
                 continue
             elif choice == "OOC Commands...":
                 ooc_choice = questionary.select(
