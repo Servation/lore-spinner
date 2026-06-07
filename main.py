@@ -811,6 +811,12 @@ Do not include any intro, outro, or metadata. Write only the narrative paragraph
         print("Active Modifiers: None (Normal conditions)")
         
     # 6. Discovered Locations
+    current_loc = next((l for l in world.discovered_locations if l.id == world.current_location_id), None)
+    if current_loc:
+        print_styled("-" * 45, COLOR_SYSTEM)
+        print_styled("[ Current Location ]", COLOR_OOC)
+        print(f"- {current_loc.name} ({current_loc.type.title()}): {current_loc.description}")
+
     if world.discovered_locations:
         print_styled("-" * 45, COLOR_SYSTEM)
         print_styled("[ Discovered Locations ]", COLOR_OOC)
