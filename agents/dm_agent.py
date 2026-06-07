@@ -940,7 +940,43 @@ class DMAgent(BaseAgent):
             with open(world_path, "w", encoding="utf-8") as f:
                 json.dump(world.to_dict(), f, indent=4)
             
-            return f"Successfully moved player to new location: '{loc_name}'."
+            return f"Created new location '{new_loc.name}' and moved player there."
+
+        def start_long_journey(args: str) -> str:
+            parts = [p.strip() for p in args.split("|")]
+            if len(parts) < 3:
+                return "Error: Format must be 'Destination Name | Description | Type'."
+            
+            dest_name, dest_desc, dest_type = parts[0], parts[1], parts[2]
+            world = WorldState.from_dict(self.save_mgr.load_state("world"))
+            
+            dest = next((l for l in world.discovered_locations if l.name.lower() == dest_name.lower()), None)
+            
+            if not dest:
+                import uuid
+                from game_engine.world import Location
+                dest = Location(
+                    id=str(uuid.uuid4()),
+                    name=dest_name,
+                    description=dest_desc,
+                    type=dest_type,
+                    discovered_turn=world.turn_count
+                )
+                world.discovered_locations.append(dest)
+                
+            current = next((l for l in world.discovered_locations if l.id == world.current_location_id), None)
+            current_name = current.name if current else "Unknown"
+            
+            from game_engine.journey import generate_journey_map
+            jmap = generate_journey_map(self.llm_client, current_name, dest.id, dest.name, world.setting_genre, world.active_quests)
+            if jmap:
+                world.active_journey = jmap
+                self.save_mgr.save_state("world", world.to_dict())
+                return f"Successfully generated a journey map to {dest.name}. The player is now locked into the Journey Node Map."
+            else:
+                world.current_location_id = dest.id
+                self.save_mgr.save_state("world", world.to_dict())
+                return f"Failed to generate journey map. Fast traveled to {dest.name} instead."
 
         cast_cache = {"mtime": 0, "data": None}
         def query_cast(dummy: str) -> str:
@@ -1107,6 +1143,7 @@ class DMAgent(BaseAgent):
             "trigger_faction_weaver": trigger_faction_weaver,
             "trigger_encounter_architect": trigger_encounter_architect,
             "trigger_lore_keeper": trigger_lore_keeper,
+            "start_long_journey": start_long_journey,
             "modify_inventory": modify_inventory,
             "modify_currency": modify_currency,
             "disassemble_item": disassemble_item,
@@ -1278,8 +1315,8 @@ Follow these strict DM instructions:
    - Anti-Softlock: If the player fails to craft an item that was strictly required to progress their Active Quest, you MUST subtly weave an alternative solution or path into the environment so they are not permanently stuck.
 9. Player Validity & Spatial Limits: Cross-reference all player claims against the Context block (Inventory, Skills). The player can ONLY interact with entities and structures present in their 'Current Location'. If they attempt to use an item they don't have, attempt a feat requiring a skill they don't possess, or interact with something located elsewhere, narrate their mechanical failure and refuse the action.
 10. Contested Resolution (When to Roll): If a player attempts any difficult, risky, or contested action (e.g. jumping a chasm, attacking, lying to a guard), you MUST call 'roll_ability_check' using the most relevant ability tag. Never let the player narrate their own guaranteed success for risky actions. HOWEVER, you MUST NOT force a roll for mundane tasks, basic traversal, moving between rooms, walking forward, or standard observation/investigation (e.g. "I search the room", "I move to the next area"). If there is no immediate danger or time pressure, the player automatically succeeds at mundane tasks, and you must NOT use the 'roll_ability_check' tool. Exception: If the player's action explicitly includes brackets with mechanics (e.g. '[Athletics | strength +1 | DC 15]'), you MUST call 'roll_ability_check' using that exact tag/attribute and DC. Furthermore, if the player's narrative action clearly maps to or paraphrases one of the numbered choices you offered on the previous turn, you MUST enforce the exact skill check and DC that you originally assigned to that option, even if they don't explicitly type the brackets.
-11. SCENE TRANSITION RULE (AVOIDING STICKINESS): If you offer a choice to move to a location, or if the player decides to go somewhere locally, you MUST instantly transition the scene to their arrival. Do NOT narrate them "walking", "pressing on", or "on the road" over multiple turns. CRITICAL: You MUST call 'register_and_move_location' before you output your Answer to update the engine's map. If you just narrate them leaving without calling the tool, they will rubber-band and get permanently stuck at their previous location on the next turn! Furthermore, when a player succeeds at a quest, weave a diegetic confirmation and narrate a significant leap forward in the story to avoid boring point-and-click loops. IMPORTANT: If a quest requires turning in an item, use 'modify_inventory' to remove it and 'trigger_lore_keeper' to mark it finished.
-12. LONG DISTANCE TRAVEL: The game uses a strict Node-Graph for regional travel. Do NOT offer choices to walk to new distant cities, and do NOT narrate long journeys yourself. If they attempt to "travel to the capital" via text action, explicitly refuse the action and tell them they must use the [Travel] UI menu to navigate the world map.
+11. SCENE TRANSITION RULE (AVOIDING STICKINESS): If you offer a choice to move to a location LOCALLY within the same town/zone, you MUST instantly transition the scene to their arrival using 'register_and_move_location'. However, if the player decides to travel LONG DISTANCE to a different region, city, wilderness, or faraway landmark, you MUST call 'start_long_journey' instead. This will generate a roguelike node map for their travel. CRITICAL: You MUST call one of these tools before you output your Answer to update the engine's map. If you just narrate them leaving without calling the tool, they will rubber-band and get permanently stuck! Furthermore, when a player succeeds at a quest, weave a diegetic confirmation and narrate a significant leap forward in the story to avoid boring point-and-click loops. IMPORTANT: If a quest requires turning in an item, use 'modify_inventory' to remove it and 'trigger_lore_keeper' to mark it finished.
+12. LONG DISTANCE TRAVEL: The game uses a strict Node-Graph for regional travel. Do NOT narrate long journeys yourself. If the player attempts to "travel to the capital" or head to a distant region via a text action, or if you offer them a choice to leave the region and they accept, you MUST call 'start_long_journey'. This will instantly generate the node map and lock them into the journey traversal system.
 13. World Mechanics (Time & Aspects): Actively enforce 'Active World Aspects' (Nemesis, Heat, Trauma) to impose narrative complications. If the player attempts a long activity (sleeping, crafting, stakeouts), use the 'advance_time' tool to push the world clock forward 2-4 turns.
 14. Character Continuity: When Spine Characters or Promoted NPCs appear in a scene, you MUST use 'query_cast' to get their personality, hidden agenda, and current status. Write their dialogue and behavior consistent with their personality. Subtly foreshadow upcoming story beats through NPC behavior without being heavy-handed (e.g., if The Catalyst has a hidden agenda, show small inconsistencies in their behavior that a perceptive player might notice).
 15. Advantage & Disadvantage (5e Style): You MUST append 'adv' to your `roll_ability_check` or `apply_combat_turn` tool arguments if the player has superior positioning, surprise, or leveraged a clever environmental tool (e.g. attacking from high ground). You MUST append 'dis' if the player is severely hindered (e.g. shooting in pitch darkness, fighting while entangled). This stacks with 'Preparation Advantage' (which lowers the DC).{rule_15_text}
@@ -1313,7 +1350,8 @@ Available Tools:
 [Narrative]
 - modify_relationship: Adds or removes long-term relationships (love interest, rival, friend). Format: 'add | Name | Desc' or 'remove | Name'. Usage: Action: modify_relationship: add | Sarah | Love Interest - Rebel courier
 - modify_location: Adds or updates a discovered city, landmark, ruins, wonder, or POI. Format: 'add | Name | Type | Desc' or 'update | Name | Desc'. Usage: Action: modify_location: add | Cinder Spire | natural wonder | Burning glass pillar.
-- register_and_move_location: Moves the player to a local area within the current town (e.g. a shop, alley, or temple). If the location already exists on the map, moves the player there. If it doesn't exist, creates it and connects it to the current location. Format: 'Name | Description | Type'. Usage: Action: register_and_move_location: Hemlock's Store | A dusty general store run by an old man | shop
+- register_and_move_location: Moves the player to a LOCAL area within the current town/zone. Do NOT use for long distance travel. Format: 'Name | Description | Type'. Usage: Action: register_and_move_location: Hemlock's Store | A dusty general store | shop
+- start_long_journey: Starts a long-distance pointcrawl journey to a new or existing faraway location. Format: 'Destination Name | Description | Type'. Usage: Action: start_long_journey: The Ashen Peaks | A treacherous mountain range | wilderness
 - add_location_rumor: Adds a localized hook/rumor to a location. Format: 'Location Name | Rumor'. Usage: Action: add_location_rumor: The Spire | Barkeep is acting suspicious.
 - resolve_location_rumor: Removes a rumor from a location once handled. If escalated is true, the rumor is sent to the Lore Keeper to become a main story quest. Format: 'Location Name | Rumor | true/false'. Usage: Action: resolve_location_rumor: The Spire | Barkeep is suspicious | true
 - modify_world_aspect: Modifies world aspects. Format: 'add | name | type | desc | [intensity]' or 'remove | name'. Usage: Action: modify_world_aspect: add | High Heat | Trauma | Guard patrols everywhere | 2

@@ -68,11 +68,17 @@ class JourneyMap:
             return None
         return self.nodes.get(self.current_node_id)
 
-def generate_journey_map(llm_client, current_name: str, dest_id: str, dest_name: str, genre: str) -> Optional[JourneyMap]:
+def generate_journey_map(llm_client, current_name: str, dest_id: str, dest_name: str, genre: str, active_quests: list = None) -> Optional[JourneyMap]:
     import json
     import uuid
+    
+    quest_str = ""
+    if active_quests:
+        quest_str = "\nActive Quests:\n" + "\n".join([f"- {q.name}: {q.description}" for q in active_quests])
+        quest_str += "\n\nCRITICAL: Weave themes, encounters, or hazards directly related to these quests into the node names and descriptions!\n"
+
     prompt = f"""The player is at '{current_name}' and is embarking on a journey to '{dest_name}'.
-Based on the '{genre}' genre, generate a branching 'Slay the Spire' style pointcrawl node map for this journey.
+Based on the '{genre}' genre, generate a branching 'Slay the Spire' style pointcrawl node map for this journey.{quest_str}
 The map must have exactly 3 layers (depths) of intermediate nodes between the start and the destination.
 The player will start by choosing one of the nodes in Layer 1.
 

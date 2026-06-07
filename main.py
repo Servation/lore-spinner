@@ -948,23 +948,51 @@ def run_travel_mode(llm_client, campaign_slug: str, world: WorldState) -> None:
         # The name was appended with (Type), so we need to match carefully or just by string
         dest = next((l for l in other_locs if choice.startswith(f"Travel to: {l.name}")), None)
         if dest:
-            from game_engine.journey import generate_journey_map
-            print_styled(f"\nCharting a course to {dest.name}...", theme.color_system)
-            with Halo(text='Generating journey map...', spinner='dots', color='yellow'):
-                jmap = generate_journey_map(llm_client, current.name, dest.id, dest.name, world.setting_genre)
-            if jmap:
-                world.active_journey = jmap
-                world_path = os.path.join("saves", campaign_slug, "world_state.json")
-                with open(world_path, "w", encoding="utf-8") as f:
-                    json.dump(world.to_dict(), f, indent=4)
-                print_styled(f"\nYou begin your journey to {dest.name}.", theme.color_ooc)
-            else:
-                print_styled("Failed to generate journey map. Fast traveling instead...", COLOR_ERROR)
+            # Determine if this is a local hop or a regional journey
+            def get_distance(start_id, target_id):
+                if start_id == target_id: return 0
+                q = [(start_id, 0)]
+                visited = set([start_id])
+                while q:
+                    curr, dist = q.pop(0)
+                    if curr == target_id: return dist
+                    node = next((l for l in world.discovered_locations if l.id == curr), None)
+                    if node:
+                        for conn in node.connections:
+                            if conn not in visited:
+                                visited.add(conn)
+                                q.append((conn, dist + 1))
+                return 999
+                
+            dist = get_distance(current.id, dest.id)
+            regional_types = ["city", "town", "wilderness", "region", "landmark", "ruins", "dungeon", "forest", "mountain", "village", "stronghold"]
+            is_local = (dist <= 2) or (dest.type.lower() not in regional_types and dist <= 3)
+            
+            if is_local:
                 world.current_location_id = dest.id
                 world.turn_count += 1
                 world_path = os.path.join("saves", campaign_slug, "world_state.json")
                 with open(world_path, "w", encoding="utf-8") as f:
                     json.dump(world.to_dict(), f, indent=4)
+                print_styled(f"\nYou make your way to {dest.name}.", theme.color_ooc)
+            else:
+                from game_engine.journey import generate_journey_map
+                print_styled(f"\nCharting a course to {dest.name}...", theme.color_system)
+                with Halo(text='Generating journey map...', spinner='dots', color='yellow'):
+                    jmap = generate_journey_map(llm_client, current.name, dest.id, dest.name, world.setting_genre, world.active_quests)
+                if jmap:
+                    world.active_journey = jmap
+                    world_path = os.path.join("saves", campaign_slug, "world_state.json")
+                    with open(world_path, "w", encoding="utf-8") as f:
+                        json.dump(world.to_dict(), f, indent=4)
+                    print_styled(f"\nYou begin your journey to {dest.name}.", theme.color_ooc)
+                else:
+                    print_styled("Failed to generate journey map. Fast traveling instead...", COLOR_ERROR)
+                    world.current_location_id = dest.id
+                    world.turn_count += 1
+                    world_path = os.path.join("saves", campaign_slug, "world_state.json")
+                    with open(world_path, "w", encoding="utf-8") as f:
+                        json.dump(world.to_dict(), f, indent=4)
             return
 
 def initialize_world(llm_client, campaign_slug: str) -> bool:
@@ -1609,11 +1637,7 @@ def main():
     mcp_client_global = None
     try:
         print_styled("Initializing D&D MCP Knowledge Base...", COLOR_SYSTEM)
-        server_path = os.path.abspath(os.path.join("dnd-mcp", "dnd_mcp_server.py"))
-        orig_cwd = os.getcwd()
-        os.chdir("dnd-mcp")
-        mcp_client_global = SyncMCPClient("dnd_mcp_server.py", cwd=os.getcwd())
-        os.chdir(orig_cwd)
+        mcp_client_global = SyncMCPClient(os.path.join("dnd-mcp", "dnd_mcp_server.py"), cwd=os.getcwd())
     except Exception as e:
         print_styled(f"Failed to initialize MCP Server: {e}", COLOR_ERROR)
         

@@ -1,0 +1,500 @@
+2026-06-07 02:08:11,274 - mcp.server.lowlevel.server - DEBUG - Initializing server 'dnd-knowledge-navigator'
+2026-06-07 02:08:11,274 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListToolsRequest
+2026-06-07 02:08:11,274 - mcp.server.lowlevel.server - DEBUG - Registering handler for CallToolRequest
+2026-06-07 02:08:11,274 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListResourcesRequest
+2026-06-07 02:08:11,276 - mcp.server.lowlevel.server - DEBUG - Registering handler for ReadResourceRequest
+2026-06-07 02:08:11,276 - mcp.server.lowlevel.server - DEBUG - Registering handler for PromptListRequest
+2026-06-07 02:08:11,276 - mcp.server.lowlevel.server - DEBUG - Registering handler for GetPromptRequest
+2026-06-07 02:08:11,276 - mcp.server.lowlevel.server - DEBUG - Registering handler for ListResourceTemplatesRequest
+2026-06-07 02:08:11,345 - src.core.cache - INFO - Loaded 6 items from persistent cache
+2026-06-07 02:08:11,345 - src.core.cache - DEBUG - Initialized API cache with TTL of 24 hours (persistent: True)
+2026-06-07 02:08:11,347 - src.core.resources - INFO - Prefetching items for category: spells
+2026-06-07 02:08:11,347 - src.core.cache - DEBUG - Cache miss for key: dnd_items_spells
+2026-06-07 02:08:11,347 - src.core.resources - INFO - Prefetching items for category: equipment
+2026-06-07 02:08:11,347 - src.core.resources - DEBUG - Fetching item list for category: spells
+2026-06-07 02:08:11,347 - src.core.cache - DEBUG - Cache miss for key: dnd_items_equipment
+2026-06-07 02:08:11,347 - src.core.resources - INFO - Prefetching items for category: monsters
+2026-06-07 02:08:11,347 - src.core.resources - DEBUG - Fetching item list for category: equipment
+2026-06-07 02:08:11,348 - src.core.resources - INFO - Prefetching items for category: classes
+2026-06-07 02:08:11,348 - src.core.cache - DEBUG - Cache miss for key: dnd_items_monsters
+2026-06-07 02:08:11,348 - src.core.resources - INFO - Prefetching items for category: races
+2026-06-07 02:08:11,348 - src.core.cache - DEBUG - Cache miss for key: dnd_items_classes
+2026-06-07 02:08:11,349 - mcp.server.fastmcp.resources.resource_manager - DEBUG - Adding resource
+2026-06-07 02:08:11,349 - src.core.resources - DEBUG - Fetching item list for category: monsters
+2026-06-07 02:08:11,349 - src.core.cache - DEBUG - Cache miss for key: dnd_items_races
+2026-06-07 02:08:11,349 - src.core.resources - DEBUG - Fetching item list for category: classes
+2026-06-07 02:08:11,354 - mcp.server.fastmcp.resources.resource_manager - DEBUG - Adding resource
+2026-06-07 02:08:11,354 - src.core.resources - DEBUG - Fetching item list for category: races
+2026-06-07 02:08:11,374 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:11,375 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:11,376 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:11,376 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:11,376 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:11,380 - asyncio - DEBUG - Using proactor: IocpProactor
+2026-06-07 02:08:12,184 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes HTTP/1.1" 301 51
+2026-06-07 02:08:12,198 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment HTTP/1.1" 301 53
+2026-06-07 02:08:12,203 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races HTTP/1.1" 301 49
+2026-06-07 02:08:12,203 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells HTTP/1.1" 301 50
+2026-06-07 02:08:12,204 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters HTTP/1.1" 301 52
+2026-06-07 02:08:12,276 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes HTTP/1.1" 200 846
+2026-06-07 02:08:12,276 - src.core.cache - DEBUG - Cached value for key: dnd_items_classes
+2026-06-07 02:08:12,277 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_barbarian
+2026-06-07 02:08:12,277 - src.core.resources - DEBUG - Prefetching item details: classes/barbarian
+2026-06-07 02:08:12,278 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:12,295 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment HTTP/1.1" 200 20002
+2026-06-07 02:08:12,301 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races HTTP/1.1" 200 635
+2026-06-07 02:08:12,302 - src.core.cache - DEBUG - Cached value for key: dnd_items_races
+2026-06-07 02:08:12,303 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells HTTP/1.1" 200 30462
+2026-06-07 02:08:12,304 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters HTTP/1.1" 200 27747
+2026-06-07 02:08:12,308 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_dragonborn
+2026-06-07 02:08:12,308 - src.core.resources - DEBUG - Prefetching item details: races/dragonborn
+2026-06-07 02:08:12,309 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:12,370 - src.core.cache - DEBUG - Cached value for key: dnd_items_equipment
+2026-06-07 02:08:12,376 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_abacus
+2026-06-07 02:08:12,376 - src.core.resources - DEBUG - Prefetching item details: equipment/abacus
+2026-06-07 02:08:12,377 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:12,383 - src.core.cache - DEBUG - Cached value for key: dnd_items_monsters
+2026-06-07 02:08:12,389 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_aboleth
+2026-06-07 02:08:12,389 - src.core.resources - DEBUG - Prefetching item details: monsters/aboleth
+2026-06-07 02:08:12,390 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:12,459 - src.core.cache - DEBUG - Cached value for key: dnd_items_spells
+2026-06-07 02:08:12,465 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_acid-arrow
+2026-06-07 02:08:12,465 - src.core.resources - DEBUG - Prefetching item details: spells/acid-arrow
+2026-06-07 02:08:12,466 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:12,981 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/barbarian HTTP/1.1" 301 61
+2026-06-07 02:08:13,044 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/dragonborn HTTP/1.1" 301 60
+2026-06-07 02:08:13,072 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/barbarian HTTP/1.1" 200 3970
+2026-06-07 02:08:13,073 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_barbarian
+2026-06-07 02:08:13,079 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_bard
+2026-06-07 02:08:13,079 - src.core.resources - DEBUG - Prefetching item details: classes/bard
+2026-06-07 02:08:13,080 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:13,120 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment/abacus HTTP/1.1" 301 60
+2026-06-07 02:08:13,131 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/dragonborn HTTP/1.1" 200 1666
+2026-06-07 02:08:13,132 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_dragonborn
+2026-06-07 02:08:13,138 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_dwarf
+2026-06-07 02:08:13,138 - src.core.resources - DEBUG - Prefetching item details: races/dwarf
+2026-06-07 02:08:13,138 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:13,144 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/aboleth HTTP/1.1" 301 60
+2026-06-07 02:08:13,171 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/acid-arrow HTTP/1.1" 301 61
+2026-06-07 02:08:13,220 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment/abacus HTTP/1.1" 200 457
+2026-06-07 02:08:13,221 - src.core.cache - DEBUG - Cached value for key: dnd_item_equipment_abacus
+2026-06-07 02:08:13,226 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_acid-vial
+2026-06-07 02:08:13,226 - src.core.resources - DEBUG - Prefetching item details: equipment/acid-vial
+2026-06-07 02:08:13,227 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:13,237 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/aboleth HTTP/1.1" 200 5155
+2026-06-07 02:08:13,239 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_aboleth
+2026-06-07 02:08:13,244 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_acolyte
+2026-06-07 02:08:13,244 - src.core.resources - DEBUG - Prefetching item details: monsters/acolyte
+2026-06-07 02:08:13,245 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:13,255 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/acid-arrow HTTP/1.1" 200 1420
+2026-06-07 02:08:13,256 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_acid-arrow
+2026-06-07 02:08:13,262 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_acid-splash
+2026-06-07 02:08:13,262 - src.core.resources - DEBUG - Prefetching item details: spells/acid-splash
+2026-06-07 02:08:13,262 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:13,749 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/bard HTTP/1.1" 301 56
+2026-06-07 02:08:13,841 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/bard HTTP/1.1" 200 13310
+2026-06-07 02:08:13,863 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/dwarf HTTP/1.1" 301 55
+2026-06-07 02:08:13,921 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_bard
+2026-06-07 02:08:13,927 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_cleric
+2026-06-07 02:08:13,928 - src.core.resources - DEBUG - Prefetching item details: classes/cleric
+2026-06-07 02:08:13,928 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:13,952 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment/acid-vial HTTP/1.1" 301 63
+2026-06-07 02:08:13,952 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/dwarf HTTP/1.1" 200 1708
+2026-06-07 02:08:13,955 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_dwarf
+2026-06-07 02:08:13,961 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_elf
+2026-06-07 02:08:13,961 - src.core.resources - DEBUG - Prefetching item details: races/elf
+2026-06-07 02:08:13,961 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:13,976 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/acolyte HTTP/1.1" 301 60
+2026-06-07 02:08:13,980 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/acid-splash HTTP/1.1" 301 62
+2026-06-07 02:08:14,040 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment/acid-vial HTTP/1.1" 200 776
+2026-06-07 02:08:14,041 - src.core.cache - DEBUG - Cached value for key: dnd_item_equipment_acid-vial
+2026-06-07 02:08:14,047 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_alchemists-fire-flask
+2026-06-07 02:08:14,047 - src.core.resources - DEBUG - Prefetching item details: equipment/alchemists-fire-flask
+2026-06-07 02:08:14,048 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:14,066 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/acolyte HTTP/1.1" 200 2441
+2026-06-07 02:08:14,067 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_acolyte
+2026-06-07 02:08:14,069 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/acid-splash HTTP/1.1" 200 1212
+2026-06-07 02:08:14,070 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_acid-splash
+2026-06-07 02:08:14,073 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_aid
+2026-06-07 02:08:14,073 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-black-dragon
+2026-06-07 02:08:14,073 - src.core.resources - DEBUG - Prefetching item details: spells/aid
+2026-06-07 02:08:14,073 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-black-dragon
+2026-06-07 02:08:14,075 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:14,075 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:14,636 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/cleric HTTP/1.1" 301 58
+2026-06-07 02:08:14,658 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/elf HTTP/1.1" 301 53
+2026-06-07 02:08:14,717 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/cleric HTTP/1.1" 200 7476
+2026-06-07 02:08:14,720 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_cleric
+2026-06-07 02:08:14,726 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_druid
+2026-06-07 02:08:14,726 - src.core.resources - DEBUG - Prefetching item details: classes/druid
+2026-06-07 02:08:14,727 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:14,741 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/elf HTTP/1.1" 200 1734
+2026-06-07 02:08:14,743 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_elf
+2026-06-07 02:08:14,748 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_gnome
+2026-06-07 02:08:14,748 - src.core.resources - DEBUG - Prefetching item details: races/gnome
+2026-06-07 02:08:14,749 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:14,790 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment/alchemists-fire-flask HTTP/1.1" 301 75
+2026-06-07 02:08:14,813 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-black-dragon HTTP/1.1" 301 71
+2026-06-07 02:08:14,837 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/aid HTTP/1.1" 301 54
+2026-06-07 02:08:14,877 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment/alchemists-fire-flask HTTP/1.1" 200 940
+2026-06-07 02:08:14,879 - src.core.cache - DEBUG - Cached value for key: dnd_item_equipment_alchemists-fire-flask
+2026-06-07 02:08:14,884 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_alchemists-supplies
+2026-06-07 02:08:14,884 - src.core.resources - DEBUG - Prefetching item details: equipment/alchemists-supplies
+2026-06-07 02:08:14,885 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:14,904 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-black-dragon HTTP/1.1" 200 5145
+2026-06-07 02:08:14,906 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-black-dragon
+2026-06-07 02:08:14,912 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-blue-dragon
+2026-06-07 02:08:14,912 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-blue-dragon
+2026-06-07 02:08:14,913 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:14,920 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/aid HTTP/1.1" 200 1067
+2026-06-07 02:08:14,921 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_aid
+2026-06-07 02:08:14,927 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_alarm
+2026-06-07 02:08:14,927 - src.core.resources - DEBUG - Prefetching item details: spells/alarm
+2026-06-07 02:08:14,928 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:15,421 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/druid HTTP/1.1" 301 57
+2026-06-07 02:08:15,441 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/gnome HTTP/1.1" 301 55
+2026-06-07 02:08:15,501 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/druid HTTP/1.1" 200 7511
+2026-06-07 02:08:15,504 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_druid
+2026-06-07 02:08:15,510 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_fighter
+2026-06-07 02:08:15,510 - src.core.resources - DEBUG - Prefetching item details: classes/fighter
+2026-06-07 02:08:15,511 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:15,531 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/gnome HTTP/1.1" 200 1480
+2026-06-07 02:08:15,532 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_gnome
+2026-06-07 02:08:15,538 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_half-elf
+2026-06-07 02:08:15,538 - src.core.resources - DEBUG - Prefetching item details: races/half-elf
+2026-06-07 02:08:15,538 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:15,599 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment/alchemists-supplies HTTP/1.1" 301 73
+2026-06-07 02:08:15,623 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/alarm HTTP/1.1" 301 56
+2026-06-07 02:08:15,648 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-blue-dragon HTTP/1.1" 301 70
+2026-06-07 02:08:15,685 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment/alchemists-supplies HTTP/1.1" 200 765
+2026-06-07 02:08:15,688 - src.core.cache - DEBUG - Cached value for key: dnd_item_equipment_alchemists-supplies
+2026-06-07 02:08:15,693 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_alms-box
+2026-06-07 02:08:15,693 - src.core.resources - DEBUG - Prefetching item details: equipment/alms-box
+2026-06-07 02:08:15,694 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:15,710 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/alarm HTTP/1.1" 200 1303
+2026-06-07 02:08:15,711 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_alarm
+2026-06-07 02:08:15,717 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_alter-self
+2026-06-07 02:08:15,717 - src.core.resources - DEBUG - Prefetching item details: spells/alter-self
+2026-06-07 02:08:15,718 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:15,738 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-blue-dragon HTTP/1.1" 200 5119
+2026-06-07 02:08:15,739 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-blue-dragon
+2026-06-07 02:08:15,745 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-brass-dragon
+2026-06-07 02:08:15,745 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-brass-dragon
+2026-06-07 02:08:15,746 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:16,243 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/fighter HTTP/1.1" 301 59
+2026-06-07 02:08:16,244 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/half-elf HTTP/1.1" 301 58
+2026-06-07 02:08:16,343 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/fighter HTTP/1.1" 200 5915
+2026-06-07 02:08:16,343 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/half-elf HTTP/1.1" 200 3765
+2026-06-07 02:08:16,344 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_fighter
+2026-06-07 02:08:16,345 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_half-elf
+2026-06-07 02:08:16,351 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_monk
+2026-06-07 02:08:16,351 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_half-orc
+2026-06-07 02:08:16,352 - src.core.resources - DEBUG - Prefetching item details: classes/monk
+2026-06-07 02:08:16,352 - src.core.resources - DEBUG - Prefetching item details: races/half-orc
+2026-06-07 02:08:16,353 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:16,353 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:16,430 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment/alms-box HTTP/1.1" 301 62
+2026-06-07 02:08:16,454 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-brass-dragon HTTP/1.1" 301 71
+2026-06-07 02:08:16,454 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/alter-self HTTP/1.1" 301 61
+2026-06-07 02:08:16,512 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment/alms-box HTTP/1.1" 200 522
+2026-06-07 02:08:16,514 - src.core.cache - DEBUG - Cached value for key: dnd_item_equipment_alms-box
+2026-06-07 02:08:16,522 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_amulet
+2026-06-07 02:08:16,522 - src.core.resources - DEBUG - Prefetching item details: equipment/amulet
+2026-06-07 02:08:16,523 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:16,545 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/alter-self HTTP/1.1" 200 2095
+2026-06-07 02:08:16,546 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_alter-self
+2026-06-07 02:08:16,546 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-brass-dragon HTTP/1.1" 200 5856
+2026-06-07 02:08:16,548 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-brass-dragon
+2026-06-07 02:08:16,553 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-bronze-dragon
+2026-06-07 02:08:16,553 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-bronze-dragon
+2026-06-07 02:08:16,553 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_animal-friendship
+2026-06-07 02:08:16,554 - src.core.resources - DEBUG - Prefetching item details: spells/animal-friendship
+2026-06-07 02:08:16,555 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:16,555 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:17,035 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/half-orc HTTP/1.1" 301 58
+2026-06-07 02:08:17,036 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/monk HTTP/1.1" 301 56
+2026-06-07 02:08:17,128 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/monk HTTP/1.1" 200 7570
+2026-06-07 02:08:17,129 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_monk
+2026-06-07 02:08:17,130 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/half-orc HTTP/1.1" 200 1568
+2026-06-07 02:08:17,132 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_half-orc
+2026-06-07 02:08:17,135 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_halfling
+2026-06-07 02:08:17,135 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_paladin
+2026-06-07 02:08:17,135 - src.core.resources - DEBUG - Prefetching item details: races/halfling
+2026-06-07 02:08:17,135 - src.core.resources - DEBUG - Prefetching item details: classes/paladin
+2026-06-07 02:08:17,136 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:17,136 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:17,243 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment/amulet HTTP/1.1" 301 60
+2026-06-07 02:08:17,261 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-bronze-dragon HTTP/1.1" 301 72
+2026-06-07 02:08:17,274 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/animal-friendship HTTP/1.1" 301 68
+2026-06-07 02:08:17,329 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment/amulet HTTP/1.1" 200 954
+2026-06-07 02:08:17,331 - src.core.cache - DEBUG - Cached value for key: dnd_item_equipment_amulet
+2026-06-07 02:08:17,336 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_animal-feed-1-day
+2026-06-07 02:08:17,336 - src.core.resources - DEBUG - Prefetching item details: equipment/animal-feed-1-day
+2026-06-07 02:08:17,337 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:17,361 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-bronze-dragon HTTP/1.1" 200 5796
+2026-06-07 02:08:17,363 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-bronze-dragon
+2026-06-07 02:08:17,368 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-copper-dragon
+2026-06-07 02:08:17,368 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-copper-dragon
+2026-06-07 02:08:17,368 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:17,372 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/animal-friendship HTTP/1.1" 200 1133
+2026-06-07 02:08:17,374 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_animal-friendship
+2026-06-07 02:08:17,379 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_animal-messenger
+2026-06-07 02:08:17,380 - src.core.resources - DEBUG - Prefetching item details: spells/animal-messenger
+2026-06-07 02:08:17,380 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:17,816 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/paladin HTTP/1.1" 301 59
+2026-06-07 02:08:17,822 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/halfling HTTP/1.1" 301 58
+2026-06-07 02:08:17,898 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/paladin HTTP/1.1" 200 7029
+2026-06-07 02:08:17,900 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_paladin
+2026-06-07 02:08:17,907 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_ranger
+2026-06-07 02:08:17,907 - src.core.resources - DEBUG - Prefetching item details: classes/ranger
+2026-06-07 02:08:17,908 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:17,916 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/halfling HTTP/1.1" 200 1679
+2026-06-07 02:08:17,918 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_halfling
+2026-06-07 02:08:17,923 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_human
+2026-06-07 02:08:17,923 - src.core.resources - DEBUG - Prefetching item details: races/human
+2026-06-07 02:08:17,924 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:18,044 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment/animal-feed-1-day HTTP/1.1" 301 71
+2026-06-07 02:08:18,065 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-copper-dragon HTTP/1.1" 301 72
+2026-06-07 02:08:18,087 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/animal-messenger HTTP/1.1" 301 67
+2026-06-07 02:08:18,129 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment/animal-feed-1-day HTTP/1.1" 200 439
+2026-06-07 02:08:18,131 - src.core.cache - DEBUG - Cached value for key: dnd_item_equipment_animal-feed-1-day
+2026-06-07 02:08:18,136 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_antitoxin-vial
+2026-06-07 02:08:18,136 - src.core.resources - DEBUG - Prefetching item details: equipment/antitoxin-vial
+2026-06-07 02:08:18,137 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:18,152 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-copper-dragon HTTP/1.1" 200 5977
+2026-06-07 02:08:18,154 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-copper-dragon
+2026-06-07 02:08:18,160 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-gold-dragon
+2026-06-07 02:08:18,160 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-gold-dragon
+2026-06-07 02:08:18,160 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:18,174 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/animal-messenger HTTP/1.1" 200 1827
+2026-06-07 02:08:18,175 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_animal-messenger
+2026-06-07 02:08:18,183 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_animal-shapes
+2026-06-07 02:08:18,183 - src.core.resources - DEBUG - Prefetching item details: spells/animal-shapes
+2026-06-07 02:08:18,184 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:18,586 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/ranger HTTP/1.1" 301 58
+2026-06-07 02:08:18,604 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/human HTTP/1.1" 301 55
+2026-06-07 02:08:18,680 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/ranger HTTP/1.1" 200 7820
+2026-06-07 02:08:18,682 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_ranger
+2026-06-07 02:08:18,688 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_rogue
+2026-06-07 02:08:18,689 - src.core.resources - DEBUG - Prefetching item details: classes/rogue
+2026-06-07 02:08:18,689 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:18,693 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/human HTTP/1.1" 200 3279
+2026-06-07 02:08:18,694 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_human
+2026-06-07 02:08:18,700 - src.core.cache - DEBUG - Cache miss for key: dnd_item_races_tiefling
+2026-06-07 02:08:18,700 - src.core.resources - DEBUG - Prefetching item details: races/tiefling
+2026-06-07 02:08:18,701 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:18,824 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/equipment/antitoxin-vial HTTP/1.1" 301 68
+2026-06-07 02:08:18,878 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-gold-dragon HTTP/1.1" 301 70
+2026-06-07 02:08:18,879 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/animal-shapes HTTP/1.1" 301 64
+2026-06-07 02:08:18,923 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/equipment/antitoxin-vial HTTP/1.1" 200 635
+2026-06-07 02:08:18,924 - src.core.cache - DEBUG - Cached value for key: dnd_item_equipment_antitoxin-vial
+2026-06-07 02:08:18,930 - src.core.cache - DEBUG - Cache miss for key: dnd_item_equipment_arrow
+2026-06-07 02:08:18,930 - src.core.resources - DEBUG - Prefetching item details: equipment/arrow
+2026-06-07 02:08:18,930 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:18,964 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/animal-shapes HTTP/1.1" 200 1759
+2026-06-07 02:08:18,964 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_animal-shapes
+2026-06-07 02:08:18,966 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-gold-dragon HTTP/1.1" 200 6001
+2026-06-07 02:08:18,968 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-gold-dragon
+2026-06-07 02:08:18,970 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_animate-dead
+2026-06-07 02:08:18,970 - src.core.resources - DEBUG - Prefetching item details: spells/animate-dead
+2026-06-07 02:08:18,970 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-green-dragon
+2026-06-07 02:08:18,971 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-green-dragon
+2026-06-07 02:08:18,972 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:18,972 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:19,311 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/rogue HTTP/1.1" 301 57
+2026-06-07 02:08:19,351 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/races/tiefling HTTP/1.1" 301 58
+2026-06-07 02:08:19,402 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/rogue HTTP/1.1" 200 7051
+2026-06-07 02:08:19,404 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_rogue
+2026-06-07 02:08:19,409 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_sorcerer
+2026-06-07 02:08:19,410 - src.core.resources - DEBUG - Prefetching item details: classes/sorcerer
+2026-06-07 02:08:19,410 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:19,433 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/races/tiefling HTTP/1.1" 200 1244
+2026-06-07 02:08:19,434 - src.core.cache - DEBUG - Cached value for key: dnd_item_races_tiefling
+2026-06-07 02:08:19,617 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/animate-dead HTTP/1.1" 301 63
+2026-06-07 02:08:19,622 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-green-dragon HTTP/1.1" 301 71
+2026-06-07 02:08:19,711 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/animate-dead HTTP/1.1" 200 2296
+2026-06-07 02:08:19,713 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_animate-dead
+2026-06-07 02:08:19,713 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-green-dragon HTTP/1.1" 200 5614
+2026-06-07 02:08:19,715 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-green-dragon
+2026-06-07 02:08:19,720 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-red-dragon
+2026-06-07 02:08:19,720 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_animate-objects
+2026-06-07 02:08:19,720 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-red-dragon
+2026-06-07 02:08:19,720 - src.core.resources - DEBUG - Prefetching item details: spells/animate-objects
+2026-06-07 02:08:19,721 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:19,721 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:19,924 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/sorcerer HTTP/1.1" 301 60
+2026-06-07 02:08:20,012 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/sorcerer HTTP/1.1" 200 6342
+2026-06-07 02:08:20,014 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_sorcerer
+2026-06-07 02:08:20,020 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_warlock
+2026-06-07 02:08:20,020 - src.core.resources - DEBUG - Prefetching item details: classes/warlock
+2026-06-07 02:08:20,020 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:20,352 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/animate-objects HTTP/1.1" 301 66
+2026-06-07 02:08:20,354 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-red-dragon HTTP/1.1" 301 69
+2026-06-07 02:08:20,434 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/animate-objects HTTP/1.1" 200 3182
+2026-06-07 02:08:20,435 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_animate-objects
+2026-06-07 02:08:20,441 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_antilife-shell
+2026-06-07 02:08:20,441 - src.core.resources - DEBUG - Prefetching item details: spells/antilife-shell
+2026-06-07 02:08:20,441 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:20,443 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-red-dragon HTTP/1.1" 200 5038
+2026-06-07 02:08:20,444 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-red-dragon
+2026-06-07 02:08:20,449 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-silver-dragon
+2026-06-07 02:08:20,449 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-silver-dragon
+2026-06-07 02:08:20,449 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:20,561 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/warlock HTTP/1.1" 301 59
+2026-06-07 02:08:20,667 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/warlock HTTP/1.1" 200 6839
+2026-06-07 02:08:20,668 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_warlock
+2026-06-07 02:08:20,675 - src.core.cache - DEBUG - Cache miss for key: dnd_item_classes_wizard
+2026-06-07 02:08:20,675 - src.core.resources - DEBUG - Prefetching item details: classes/wizard
+2026-06-07 02:08:20,676 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:21,072 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-silver-dragon HTTP/1.1" 301 72
+2026-06-07 02:08:21,087 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/antilife-shell HTTP/1.1" 301 65
+2026-06-07 02:08:21,162 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-silver-dragon HTTP/1.1" 200 5844
+2026-06-07 02:08:21,163 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-silver-dragon
+2026-06-07 02:08:21,169 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_adult-white-dragon
+2026-06-07 02:08:21,169 - src.core.resources - DEBUG - Prefetching item details: monsters/adult-white-dragon
+2026-06-07 02:08:21,170 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:21,172 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/antilife-shell HTTP/1.1" 200 1011
+2026-06-07 02:08:21,173 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_antilife-shell
+2026-06-07 02:08:21,178 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_antimagic-field
+2026-06-07 02:08:21,178 - src.core.resources - DEBUG - Prefetching item details: spells/antimagic-field
+2026-06-07 02:08:21,179 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:21,240 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/classes/wizard HTTP/1.1" 301 58
+2026-06-07 02:08:21,331 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/classes/wizard HTTP/1.1" 200 6584
+2026-06-07 02:08:21,331 - src.core.cache - DEBUG - Cached value for key: dnd_item_classes_wizard
+2026-06-07 02:08:21,773 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/adult-white-dragon HTTP/1.1" 301 71
+2026-06-07 02:08:21,788 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/antimagic-field HTTP/1.1" 301 66
+2026-06-07 02:08:21,855 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/adult-white-dragon HTTP/1.1" 200 5292
+2026-06-07 02:08:21,856 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_adult-white-dragon
+2026-06-07 02:08:21,862 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_air-elemental
+2026-06-07 02:08:21,862 - src.core.resources - DEBUG - Prefetching item details: monsters/air-elemental
+2026-06-07 02:08:21,863 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:21,869 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/antimagic-field HTTP/1.1" 200 3328
+2026-06-07 02:08:21,870 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_antimagic-field
+2026-06-07 02:08:21,876 - src.core.cache - DEBUG - Cache hit for key: dnd_item_spells_antipathy-sympathy
+2026-06-07 02:08:21,876 - src.core.cache - DEBUG - Cache hit for key: dnd_item_spells_arcane-eye
+2026-06-07 02:08:21,876 - src.core.cache - DEBUG - Cache hit for key: dnd_item_spells_arcane-hand
+2026-06-07 02:08:21,876 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_arcane-lock
+2026-06-07 02:08:21,876 - src.core.resources - DEBUG - Prefetching item details: spells/arcane-lock
+2026-06-07 02:08:21,877 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:22,496 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/arcane-lock HTTP/1.1" 301 62
+2026-06-07 02:08:22,498 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/air-elemental HTTP/1.1" 301 66
+2026-06-07 02:08:22,580 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/arcane-lock HTTP/1.1" 200 1227
+2026-06-07 02:08:22,581 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_arcane-lock
+2026-06-07 02:08:22,583 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/air-elemental HTTP/1.1" 200 2924
+2026-06-07 02:08:22,584 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_air-elemental
+2026-06-07 02:08:22,588 - src.core.cache - DEBUG - Cache hit for key: dnd_item_monsters_ancient-black-dragon
+2026-06-07 02:08:22,588 - src.core.cache - DEBUG - Cache hit for key: dnd_item_monsters_ancient-blue-dragon
+2026-06-07 02:08:22,588 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_ancient-brass-dragon
+2026-06-07 02:08:22,588 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_arcane-sword
+2026-06-07 02:08:22,588 - src.core.resources - DEBUG - Prefetching item details: monsters/ancient-brass-dragon
+2026-06-07 02:08:22,588 - src.core.resources - DEBUG - Prefetching item details: spells/arcane-sword
+2026-06-07 02:08:22,589 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:22,589 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:23,211 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/arcane-sword HTTP/1.1" 301 63
+2026-06-07 02:08:23,213 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/ancient-brass-dragon HTTP/1.1" 301 73
+2026-06-07 02:08:23,300 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/ancient-brass-dragon HTTP/1.1" 200 6563
+2026-06-07 02:08:23,301 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_ancient-brass-dragon
+2026-06-07 02:08:23,302 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/arcane-sword HTTP/1.1" 200 1246
+2026-06-07 02:08:23,303 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_arcane-sword
+2026-06-07 02:08:23,309 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_ancient-bronze-dragon
+2026-06-07 02:08:23,309 - src.core.resources - DEBUG - Prefetching item details: monsters/ancient-bronze-dragon
+2026-06-07 02:08:23,310 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_arcanists-magic-aura
+2026-06-07 02:08:23,310 - src.core.resources - DEBUG - Prefetching item details: spells/arcanists-magic-aura
+2026-06-07 02:08:23,311 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:23,311 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:23,942 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/ancient-bronze-dragon HTTP/1.1" 301 74
+2026-06-07 02:08:23,959 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/arcanists-magic-aura HTTP/1.1" 301 71
+2026-06-07 02:08:24,029 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/ancient-bronze-dragon HTTP/1.1" 200 6505
+2026-06-07 02:08:24,031 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_ancient-bronze-dragon
+2026-06-07 02:08:24,036 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_ancient-copper-dragon
+2026-06-07 02:08:24,036 - src.core.resources - DEBUG - Prefetching item details: monsters/ancient-copper-dragon
+2026-06-07 02:08:24,037 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:24,048 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/arcanists-magic-aura HTTP/1.1" 200 1862
+2026-06-07 02:08:24,049 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_arcanists-magic-aura
+2026-06-07 02:08:24,054 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_astral-projection
+2026-06-07 02:08:24,054 - src.core.resources - DEBUG - Prefetching item details: spells/astral-projection
+2026-06-07 02:08:24,055 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:24,653 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/ancient-copper-dragon HTTP/1.1" 301 74
+2026-06-07 02:08:24,677 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/astral-projection HTTP/1.1" 301 68
+2026-06-07 02:08:24,735 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/ancient-copper-dragon HTTP/1.1" 200 6686
+2026-06-07 02:08:24,738 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_ancient-copper-dragon
+2026-06-07 02:08:24,744 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_ancient-gold-dragon
+2026-06-07 02:08:24,744 - src.core.resources - DEBUG - Prefetching item details: monsters/ancient-gold-dragon
+2026-06-07 02:08:24,744 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:24,767 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/astral-projection HTTP/1.1" 200 2997
+2026-06-07 02:08:24,768 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_astral-projection
+2026-06-07 02:08:24,774 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_augury
+2026-06-07 02:08:24,774 - src.core.resources - DEBUG - Prefetching item details: spells/augury
+2026-06-07 02:08:24,774 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:25,360 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/ancient-gold-dragon HTTP/1.1" 301 72
+2026-06-07 02:08:25,385 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/augury HTTP/1.1" 301 57
+2026-06-07 02:08:25,451 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/ancient-gold-dragon HTTP/1.1" 200 6715
+2026-06-07 02:08:25,452 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_ancient-gold-dragon
+2026-06-07 02:08:25,458 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_ancient-green-dragon
+2026-06-07 02:08:25,458 - src.core.resources - DEBUG - Prefetching item details: monsters/ancient-green-dragon
+2026-06-07 02:08:25,459 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:25,494 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/augury HTTP/1.1" 200 1480
+2026-06-07 02:08:25,495 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_augury
+2026-06-07 02:08:25,500 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_awaken
+2026-06-07 02:08:25,500 - src.core.resources - DEBUG - Prefetching item details: spells/awaken
+2026-06-07 02:08:25,501 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:26,073 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/ancient-green-dragon HTTP/1.1" 301 73
+2026-06-07 02:08:26,101 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/awaken HTTP/1.1" 301 57
+2026-06-07 02:08:26,159 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/ancient-green-dragon HTTP/1.1" 200 5635
+2026-06-07 02:08:26,160 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_ancient-green-dragon
+2026-06-07 02:08:26,166 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_ancient-red-dragon
+2026-06-07 02:08:26,166 - src.core.resources - DEBUG - Prefetching item details: monsters/ancient-red-dragon
+2026-06-07 02:08:26,167 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:26,193 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/awaken HTTP/1.1" 200 1471
+2026-06-07 02:08:26,194 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_awaken
+2026-06-07 02:08:26,200 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_bane
+2026-06-07 02:08:26,200 - src.core.resources - DEBUG - Prefetching item details: spells/bane
+2026-06-07 02:08:26,201 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:26,765 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/ancient-red-dragon HTTP/1.1" 301 71
+2026-06-07 02:08:26,822 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/bane HTTP/1.1" 301 55
+2026-06-07 02:08:26,858 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/ancient-red-dragon HTTP/1.1" 200 5063
+2026-06-07 02:08:26,860 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_ancient-red-dragon
+2026-06-07 02:08:26,865 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_ancient-silver-dragon
+2026-06-07 02:08:26,866 - src.core.resources - DEBUG - Prefetching item details: monsters/ancient-silver-dragon
+2026-06-07 02:08:26,866 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:26,912 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/bane HTTP/1.1" 200 1171
+2026-06-07 02:08:26,912 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_bane
+2026-06-07 02:08:26,918 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_banishment
+2026-06-07 02:08:26,918 - src.core.resources - DEBUG - Prefetching item details: spells/banishment
+2026-06-07 02:08:26,919 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:27,441 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/ancient-silver-dragon HTTP/1.1" 301 74
+2026-06-07 02:08:27,526 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/banishment HTTP/1.1" 301 61
+2026-06-07 02:08:27,529 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/ancient-silver-dragon HTTP/1.1" 200 6558
+2026-06-07 02:08:27,531 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_ancient-silver-dragon
+2026-06-07 02:08:27,537 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_ancient-white-dragon
+2026-06-07 02:08:27,537 - src.core.resources - DEBUG - Prefetching item details: monsters/ancient-white-dragon
+2026-06-07 02:08:27,538 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:27,614 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/banishment HTTP/1.1" 200 1888
+2026-06-07 02:08:27,615 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_banishment
+2026-06-07 02:08:27,620 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_barkskin
+2026-06-07 02:08:27,620 - src.core.resources - DEBUG - Prefetching item details: spells/barkskin
+2026-06-07 02:08:27,621 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:28,143 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/ancient-white-dragon HTTP/1.1" 301 73
+2026-06-07 02:08:28,226 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/barkskin HTTP/1.1" 301 59
+2026-06-07 02:08:28,230 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/ancient-white-dragon HTTP/1.1" 200 5311
+2026-06-07 02:08:28,231 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_ancient-white-dragon
+2026-06-07 02:08:28,237 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_androsphinx
+2026-06-07 02:08:28,237 - src.core.resources - DEBUG - Prefetching item details: monsters/androsphinx
+2026-06-07 02:08:28,238 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:28,312 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/barkskin HTTP/1.1" 200 908
+2026-06-07 02:08:28,313 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_barkskin
+2026-06-07 02:08:28,319 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_beacon-of-hope
+2026-06-07 02:08:28,319 - src.core.resources - DEBUG - Prefetching item details: spells/beacon-of-hope
+2026-06-07 02:08:28,320 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:28,826 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/monsters/androsphinx HTTP/1.1" 301 64
+2026-06-07 02:08:28,907 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/spells/beacon-of-hope HTTP/1.1" 301 65
+2026-06-07 02:08:28,913 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/monsters/androsphinx HTTP/1.1" 200 6812
+2026-06-07 02:08:28,914 - src.core.cache - DEBUG - Cached value for key: dnd_item_monsters_androsphinx
+2026-06-07 02:08:28,919 - src.core.cache - DEBUG - Cache miss for key: dnd_item_monsters_animated-armor
+2026-06-07 02:08:28,920 - src.core.resources - DEBUG - Prefetching item details: monsters/animated-armor
+2026-06-07 02:08:28,920 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
+2026-06-07 02:08:29,000 - urllib3.connectionpool - DEBUG - https://www.dnd5eapi.co:443 "GET /api/2014/spells/beacon-of-hope HTTP/1.1" 200 945
+2026-06-07 02:08:29,002 - src.core.cache - DEBUG - Cached value for key: dnd_item_spells_beacon-of-hope
+2026-06-07 02:08:29,008 - src.core.cache - DEBUG - Cache miss for key: dnd_item_spells_bestow-curse
+2026-06-07 02:08:29,008 - src.core.resources - DEBUG - Prefetching item details: spells/bestow-curse
+2026-06-07 02:08:29,009 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): www.dnd5eapi.co:443
