@@ -733,6 +733,7 @@ def show_campaign_summary(campaign_slug: str, llm_client):
     if log_bullets:
         print_styled("[ Story So Far ]", COLOR_OOC)
         prompt = f"""You are the chronicler for an RPG campaign.
+The protagonist is: {char.name} (Description: {char.appearance}). Use correct pronouns matching their description.
 Based on the following log of events:
 {log_bullets}
 

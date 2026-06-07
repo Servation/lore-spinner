@@ -1583,6 +1583,7 @@ Available Tools:
         context_str = (
             f"DIRECTOR'S BRIEF: {directors_brief}\n"
             f"Recent Events: {turn_history_str}\n"
+            f"Protagonist: {char.name} (Appearance: {char.appearance})\n"
             f"Character Status: {cond} | "
             f"Currency: {char.currency} | "
             f"Equipped: {', '.join(eq_list) if eq_list else 'None'} | "
