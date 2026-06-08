@@ -250,5 +250,32 @@ class TestContextMap(unittest.TestCase):
         self.assertEqual(summary, "Nodes: 2 Unknown. Edges: 1 Unknown.")
 
 
+
+    def test_summary_empty(self):
+        """Test summary output for an empty context map."""
+        self.assertEqual(self.context_map.summary(), "Nodes: 0. Edges: 0.")
+
+    def test_summary_populated(self):
+        """Test summary output for a populated context map."""
+        # Add normal nodes
+        self.context_map.graph.add_node("node1", type=NODE_TYPE_CHARACTER)
+        self.context_map.graph.add_node("node2", type=NODE_TYPE_CHARACTER)
+        self.context_map.graph.add_node("node3", type=NODE_TYPE_LOCATION)
+        # Add node without type (falls back to Unknown)
+        self.context_map.graph.add_node("node4")
+
+        # Add edges
+        self.context_map.graph.add_edge("node1", "node3", relation="LOCATED_IN")
+        self.context_map.graph.add_edge("node2", "node3", relation="LOCATED_IN")
+        self.context_map.graph.add_edge("node1", "node2", relation="ALLIED_WITH")
+        # Add edge without relation (falls back to Unknown)
+        self.context_map.graph.add_edge("node2", "node4")
+
+        # The summary sorts alphabetically by type/relation name.
+        # Nodes: 2 Character, 1 Location, 1 Unknown
+        # Edges: 1 ALLIED_WITH, 2 LOCATED_IN, 1 Unknown
+        expected = "Nodes: 2 Character, 1 Location, 1 Unknown. Edges: 1 ALLIED_WITH, 2 LOCATED_IN, 1 Unknown."
+        self.assertEqual(self.context_map.summary(), expected)
+
 if __name__ == "__main__":
     unittest.main()
