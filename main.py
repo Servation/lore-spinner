@@ -61,7 +61,8 @@ def print_dm_response(text: str, dm_color: str, stats_mode: bool):
             print_styled(line, dm_color)
 
 def clear_screen():
-    os.system("cls" if os.name == "nt" else "clear")
+    # ANSI escape sequence to clear screen and move cursor to home position
+    print("\033[2J\033[H", end="", flush=True)
 
 def display_menu():
     print_styled("\n" + "=" * 40, COLOR_TITLE)
