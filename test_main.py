@@ -1,8 +1,6 @@
 import unittest
 from unittest.mock import patch
 import io
-import os
-import sys
 
 # Import the module to test
 import main

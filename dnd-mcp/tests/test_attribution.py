@@ -13,8 +13,6 @@ from src.attribution import (
     ConfidenceLevel,
     ConfidenceFactors,
     ConfidenceScorer,
-    ToolCategory,
-    track_tool_usage,
     source_tracker,
     attribution_manager
 )

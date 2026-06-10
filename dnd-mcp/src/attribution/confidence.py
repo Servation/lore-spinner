@@ -5,7 +5,7 @@ This module provides functionality to calculate and manage confidence scores
 for information provided by the system.
 """
 
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Tuple
 from enum import Enum
 from src.attribution.core import ConfidenceLevel
 

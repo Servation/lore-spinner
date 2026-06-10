@@ -5,7 +5,7 @@ This module provides functions to expand queries with D&D-specific synonyms.
 """
 
 import re
-from typing import Dict, List, Tuple, Set
+from typing import List, Tuple, Set
 
 # Dictionary of D&D-specific synonyms
 # Format: term -> list of synonyms

@@ -4,7 +4,7 @@ import os
 # Add current directory to path
 sys.path.append(os.path.abspath("d:/agent-game"))
 
-from game_engine.combat import generate_enemy, resolve_combat_round, Enemy
+from game_engine.combat import generate_enemy, resolve_combat_round
 from game_engine.character import Character
 from game_engine.dice import roll
 

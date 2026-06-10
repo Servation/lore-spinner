@@ -7,15 +7,10 @@ and examining the formatted attribution in the response.
 """
 
 import sys
-import json
 import traceback
 from src.attribution import (
     SourceAttribution,
     ConfidenceLevel,
-    ConfidenceFactors,
-    ConfidenceScorer,
-    ToolCategory,
-    track_tool_usage,
     source_tracker,
     attribution_manager
 )

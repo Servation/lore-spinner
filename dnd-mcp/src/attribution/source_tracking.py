@@ -7,14 +7,12 @@ to provide comprehensive source tracking for all information.
 
 from typing import Dict, Any, List, Optional, Tuple
 from src.attribution.core import (
-    SourceAttribution,
-    AttributionManager,
     ConfidenceLevel,
     attribution_manager
 )
-from src.attribution.citation import Citation, CitationManager, citation_manager
+from src.attribution.citation import citation_manager
 from src.attribution.confidence import ConfidenceScorer, ConfidenceFactors
-from src.attribution.tool_tracking import ToolTracker, ToolCategory, tool_tracker, track_tool_usage
+from src.attribution.tool_tracking import ToolCategory, tool_tracker, track_tool_usage
 from src.attribution.formatters import format_all_attribution_for_display
 
 

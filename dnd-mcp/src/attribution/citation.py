@@ -6,7 +6,7 @@ for specific rules, descriptions, and other D&D content.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from src.attribution.core import SourceAttribution
 
 

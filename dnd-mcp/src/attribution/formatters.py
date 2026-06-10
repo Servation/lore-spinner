@@ -5,7 +5,6 @@ This module provides functions to format attribution information for display to 
 """
 
 from typing import Dict, Any, List
-from src.attribution.core import SourceAttribution
 
 
 def format_attribution_for_display(attribution: Dict[str, Any]) -> str:

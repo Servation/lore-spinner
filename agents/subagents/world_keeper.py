@@ -4,7 +4,6 @@ import random
 from typing import Dict, Callable
 from agents.base_agent import BaseAgent
 from game_engine.world import WorldState
-from persistence.save_manager import SaveManager
 
 class WorldKeeper(BaseAgent):
     def __init__(self, llm_client, campaign_slug: str):

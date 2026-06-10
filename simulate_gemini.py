@@ -9,7 +9,6 @@ from llm_clients import GeminiClient
 from persistence import SaveManager
 from agents.dm_agent import DMAgent
 from game_engine.character import Character
-from game_engine.ability_system import AbilitySet
 from game_engine.world import WorldState
 
 from agents.mcp_client import SyncMCPClient

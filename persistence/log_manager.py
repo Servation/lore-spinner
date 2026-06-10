@@ -1,6 +1,5 @@
 import os
 import datetime
-from typing import Optional
 
 def write_dm_log(campaign_slug: str, entry: str, llm_client = None) -> str:
     """Writes an entry to the DM's log file for the specified campaign.

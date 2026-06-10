@@ -7,7 +7,6 @@ and displaying the results.
 """
 
 import sys
-import json
 import requests
 from src.templates import (
     TEMPLATES_ENABLED,

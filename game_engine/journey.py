@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 
 @dataclass
 class JourneyNode:
@@ -70,7 +70,6 @@ class JourneyMap:
 
 def generate_journey_map(llm_client, current_name: str, dest_id: str, dest_name: str, genre: str, active_quests: list = None) -> Optional[JourneyMap]:
     import json
-    import uuid
     
     quest_str = ""
     if active_quests:

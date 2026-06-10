@@ -5,7 +5,7 @@ This module provides functions to tokenize D&D queries and handle special terms.
 """
 
 import re
-from typing import List, Tuple, Set
+from typing import List, Tuple
 
 # Special D&D terms that should be preserved as single tokens
 SPECIAL_DND_TERMS = {

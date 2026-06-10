@@ -1,6 +1,6 @@
 import re
 import inspect
-from typing import Dict, Callable, Optional
+from typing import Dict, Callable
 
 # ANSI Styling for Agents
 COLOR_THOUGHT = "\033[90m"   # Dark grey for background agents

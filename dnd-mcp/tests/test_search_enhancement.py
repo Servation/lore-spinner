@@ -6,16 +6,9 @@ This script tests the integration of the query enhancement module
 with the search_all_categories function.
 """
 
-import sys
-import json
 import requests
-from cache import APICache
 from src.query_enhancement import (
     enhance_query,
-    expand_query_with_synonyms,
-    tokenize_dnd_query,
-    fuzzy_match,
-    prioritize_categories,
     get_top_categories
 )
 

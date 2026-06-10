@@ -6,7 +6,7 @@ are most relevant to a query.
 """
 
 import re
-from typing import Dict, List, Set
+from typing import Dict, List
 
 # Category keywords mapping
 # Format: category -> list of keywords that suggest this category

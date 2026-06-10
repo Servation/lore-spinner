@@ -1,7 +1,7 @@
 import os
 import json
 import random
-from typing import Dict, Callable, List, Optional
+from typing import Dict, Callable
 from agents.base_agent import BaseAgent
 from agents.subagents.world_keeper import WorldKeeper
 from agents.subagents.faction_weaver import FactionWeaver
@@ -11,7 +11,6 @@ from agents.subagents.story_critic import StoryCritic
 from game_engine.character import Character
 from game_engine.world import WorldState
 from game_engine.dice import roll_check
-from game_engine.combat import Enemy
 from persistence.log_manager import write_dm_log
 from game_engine.context_map import ContextMap
 

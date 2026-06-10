@@ -1,7 +1,5 @@
 import os
 import sys
-import json
-from llm_clients import GeminiClient
 
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))

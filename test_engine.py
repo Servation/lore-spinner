@@ -1,12 +1,11 @@
 import os
 import json
-import shutil
 from game_engine.dice import roll, roll_check, roll_damage
-from game_engine.ability_system import AbilitySet, AbilityTag, GENRE_SEED_TAGS
+from game_engine.ability_system import AbilitySet
 from game_engine.character import Character
 from game_engine.item_system import Item
 from game_engine.world import WorldState
-from game_engine.combat import generate_enemy, resolve_combat_round, Enemy
+from game_engine.combat import generate_enemy, resolve_combat_round
 from persistence.save_manager import SaveManager, generate_slug
 from persistence.log_manager import write_dm_log, read_dm_log
 
@@ -177,7 +176,6 @@ def test_persistence():
 
 def test_dm_context():
     print("Testing DM Context injection...")
-    import sys
     from agents.dm_agent import DMAgent
     from llm_clients import MockClient
     
@@ -537,7 +535,6 @@ def test_register_and_move_location():
     print("Testing register_and_move_location tool...")
     from agents.dm_agent import DMAgent
     from llm_clients import MockClient
-    import uuid
     from game_engine.world import Location
 
     campaign_name = "Location Tool Test"
@@ -709,7 +706,6 @@ def test_stats_mode():
 def test_attribute_fallback_checks():
     print("Testing Attribute Fallback Checks...")
     from game_engine.character import Character
-    from game_engine.ability_system import AbilitySet
     from game_engine.item_system import Item
     from game_engine.world import WorldState
     from persistence.save_manager import SaveManager, generate_slug
@@ -789,8 +785,6 @@ def test_combat_style_and_maneuvers():
     from persistence.save_manager import SaveManager, generate_slug
     from agents.dm_agent import DMAgent
     from llm_clients import MockClient
-    import json
-    import os
 
     # 1. Test serialization/deserialization round-trip
     char = Character(

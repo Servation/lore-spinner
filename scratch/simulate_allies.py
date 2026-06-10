@@ -1,7 +1,6 @@
 import sys
 import os
 import copy
-import random
 
 sys.path.append(os.path.abspath("d:/agent-game"))
 

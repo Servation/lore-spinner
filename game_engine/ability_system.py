@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple
 
 @dataclass
 class AbilityTag:
