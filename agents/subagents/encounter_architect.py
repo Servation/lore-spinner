@@ -128,6 +128,12 @@ Your tools are:
                 
             try:
                 mods = json.loads(parts[3].strip())
+
+                if not isinstance(mods, dict):
+                    return "Error: Tag modifiers must be a JSON dictionary."
+                for k, v in mods.items():
+                    if not isinstance(k, str) or not isinstance(v, int) or isinstance(v, bool):
+                        return "Error: Tag modifiers must have string keys and integer values, e.g. {\"stealth\": 1}"
             except json.JSONDecodeError:
                 return "Error: Tag modifiers must be a valid JSON string, e.g. {\"stealth\": 1}"
                 

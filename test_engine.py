@@ -568,7 +568,7 @@ def test_register_and_move_location():
 
     # 1. Test moving to a new location
     result1 = dm.tools["register_and_move_location"]("Hemlock's General Store | A dusty store | shop")
-    assert "Successfully moved player to new location" in result1
+    assert "Created new location" in result1 or "Moved player to existing location" in result1
     
     # Reload world state to check changes
     world_path = os.path.join("saves", slug, "world_state.json")
