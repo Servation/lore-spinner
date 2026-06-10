@@ -1,0 +1,10 @@
+🔒 Fix missing validation for Attributes JSON payload
+
+🎯 **What:**
+Added deep structural validation to the JSON payload returned by the LLM when parsing character attributes in `main.py`.
+
+⚠️ **Risk:**
+Prior to this fix, `json.loads` parsed the LLM output without validating the data structure. While there was no arbitrary code execution risk, missing or malformed keys (e.g. `tags` returning a string instead of a dictionary, `combat_maneuvers` returning an integer instead of a list) could cause application crashes (TypeErrors) when accessing `.get()` methods or iterating down the line.
+
+🛡️ **Solution:**
+Added lightweight type-checking right after `json.loads`. It ensures that `data` is a dictionary and deeply validates the expected data types for keys such as `tags`, `weapon`, `armor`, `currency`, `combat_style`, and `combat_maneuvers`. If any structural validation fails, it correctly raises a `ValueError` which routes to the existing fallback mechanism without crashing the application.

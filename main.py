@@ -410,8 +410,27 @@ Do not include any markdown formatting, thoughts, or text."""
         clean_res = clean_res.strip()
         data = json.loads(clean_res)
         
+        if not isinstance(data, dict):
+            raise ValueError("Parsed JSON payload is not a dictionary")
+
         # Support fallback where LLM just returns tags
         if "tags" in data:
+            if not isinstance(data["tags"], dict):
+                raise ValueError("'tags' must be a dictionary")
+            if "weapon" in data and data["weapon"] is not None and not isinstance(data["weapon"], dict):
+                raise ValueError("'weapon' must be a dictionary")
+            if "armor" in data and data["armor"] is not None and not isinstance(data["armor"], dict):
+                raise ValueError("'armor' must be a dictionary")
+            if "food" in data and data["food"] is not None and not isinstance(data["food"], dict):
+                raise ValueError("'food' must be a dictionary")
+            if "camping_gear" in data and data["camping_gear"] is not None and not isinstance(data["camping_gear"], dict):
+                raise ValueError("'camping_gear' must be a dictionary")
+            if "currency" in data and not isinstance(data["currency"], (int, float)):
+                raise ValueError("'currency' must be a number")
+            if "combat_style" in data and not isinstance(data["combat_style"], str):
+                raise ValueError("'combat_style' must be a string")
+            if "combat_maneuvers" in data and not isinstance(data["combat_maneuvers"], list):
+                raise ValueError("'combat_maneuvers' must be a list")
             tags = data.get("tags", {})
             weapon_data = data.get("weapon")
             armor_data = data.get("armor")
