@@ -2,7 +2,7 @@ import os
 import json
 from typing import Dict, Callable
 from agents.base_agent import BaseAgent
-from game_engine.world import WorldState, StorySpine, StoryBeat
+from game_engine.world import WorldState, StorySpine
 
 class LoreKeeper(BaseAgent):
     def __init__(self, llm_client, campaign_slug: str):

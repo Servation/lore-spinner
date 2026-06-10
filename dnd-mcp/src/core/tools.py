@@ -1,26 +1,14 @@
 #!/usr/bin/env python3
 import sys
-import json
-import traceback
-import urllib.request
-import urllib.error
-import urllib.parse
-import mcp.types as types
-from src.core.api_helpers import API_BASE_URL
-from src.core.formatters import format_monster_data, format_spell_data, format_class_data
 import requests
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from src.core.cache import APICache
-import src.core.formatters as formatters
-import src.core.resources as resources
 import time
 # Import our new source attribution system
 from src.attribution import (
     SourceAttribution,
     ConfidenceLevel,
-    ConfidenceFactors,
-    ConfidenceScorer,
     ToolCategory,
     track_tool_usage,
     source_tracker,
@@ -35,10 +23,6 @@ from src.templates import (
 # Import our query enhancement module
 from src.query_enhancement import (
     enhance_query,
-    expand_query_with_synonyms,
-    tokenize_dnd_query,
-    fuzzy_match,
-    prioritize_categories,
     get_top_categories
 )
 

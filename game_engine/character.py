@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from game_engine.ability_system import AbilitySet, AbilityTag
 from game_engine.item_system import Item
 

@@ -5,8 +5,6 @@ Test script for template integration with tools.
 This script tests the integration of our template system with the tools.
 """
 
-import sys
-import json
 from src.templates import TEMPLATES_ENABLED
 from src.templates.config import FORMATTING_OPTIONS
 from src.attribution import source_tracker, attribution_manager, SourceAttribution, ConfidenceLevel

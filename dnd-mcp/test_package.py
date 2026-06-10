@@ -8,7 +8,6 @@ everything is properly accessible.
 from src.templates import formatter, spell
 from src.query_enhancement import synonyms, tokenizer
 from src.attribution import core as attribution_core
-from src.core import api_helpers
 from src import __version__
 import sys
 import os

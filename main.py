@@ -2,9 +2,7 @@ import os
 import json
 import argparse
 import random
-import textwrap
 import questionary
-from questionary import Style
 from halo import Halo
 from typing import List, Optional
 
@@ -575,7 +573,7 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
     elif "quests" in sub:
         with open(world_path, "r", encoding="utf-8") as f:
             world = WorldState.from_dict(json.load(f))
-        print_styled(f"\n--- OOC: Active Quests ---", COLOR_OOC)
+        print_styled("\n--- OOC: Active Quests ---", COLOR_OOC)
         if not world.active_quests:
             print("No active quests.")
         for quest in world.active_quests:
@@ -610,7 +608,7 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
         
     elif "log" in sub or "history" in sub:
         log = read_dm_log(campaign_slug)
-        print_styled(f"\n--- OOC: DM Campaign Log ---", COLOR_OOC)
+        print_styled("\n--- OOC: DM Campaign Log ---", COLOR_OOC)
         print(log)
         print_styled("-" * 30, COLOR_OOC)
         
@@ -618,7 +616,7 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
         if os.path.exists(lore_path):
             with open(lore_path, "r", encoding="utf-8") as f:
                 lore = json.load(f)
-            print_styled(f"\n--- OOC: Unlocked Lore ---", COLOR_OOC)
+            print_styled("\n--- OOC: Unlocked Lore ---", COLOR_OOC)
             for entry in lore.get("unlocked_lore", []):
                 print(f" * {entry.get('title')}: {entry.get('content')}")
             for secret in lore.get("secrets", []):
@@ -633,7 +631,7 @@ def handle_ooc_command(cmd: str, campaign_slug: str):
             return
         with open(world_path, "r", encoding="utf-8") as f:
             world = WorldState.from_dict(json.load(f))
-        print_styled(f"\n--- OOC: World State ---", COLOR_OOC)
+        print_styled("\n--- OOC: World State ---", COLOR_OOC)
         print(f"Turn: {world.turn_count} | Time of Day: {world.time_of_day.upper()}")
         print(f"Genre: {world.setting_genre}")
         if world.environmental_modifiers:
@@ -890,7 +888,7 @@ def run_travel_mode(llm_client, campaign_slug: str, world: WorldState) -> None:
         theme_name = current.theme if current else "default"
         theme = get_theme(theme_name)
 
-        print_styled(f"\n--- TRAVEL MODE ---", theme.color_title)
+        print_styled("\n--- TRAVEL MODE ---", theme.color_title)
         print_styled(f"You are at: {current.name} ({current.type.title()})", theme.color_ooc)
         print(f"Description: {current.description}")
         
@@ -1110,11 +1108,11 @@ def game_loop(llm_client, campaign_slug: str):
     print_styled(f"Logged in as: {char.name}", theme.color_system)
     if char.combat_style:
         print_styled(f"Combat Style: {char.combat_style}", theme.color_system)
-        print_styled(f"Combat Maneuvers:", theme.color_system)
+        print_styled("Combat Maneuvers:", theme.color_system)
         for maneuver in char.combat_maneuvers:
             print_styled(f"  - {maneuver}", theme.color_system)
         print()
-    print_styled(f"Type '/summary' to view status and story recap, 'ooc: help' for stat details, 'quit' to exit.\n", theme.color_system)
+    print_styled("Type '/summary' to view status and story recap, 'ooc: help' for stat details, 'quit' to exit.\n", theme.color_system)
     
     # Initial DM description prompt
     print_styled("--- Adventure Logs (compaction-active) ---", theme.color_system)

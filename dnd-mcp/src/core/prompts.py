@@ -2,9 +2,8 @@
 import sys
 from mcp.types import PromptMessage as UserMessage, PromptMessage as AssistantMessage
 from mcp.types import TextContent
-from src.core.api_helpers import validate_dnd_entity, fetch_dnd_entity, API_BASE_URL
+from src.core.api_helpers import validate_dnd_entity, fetch_dnd_entity
 import logging
-import re
 
 logger = logging.getLogger(__name__)
 

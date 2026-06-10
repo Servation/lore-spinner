@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 import sys
 import requests
-import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any
 from src.core.cache import APICache
 from datetime import datetime
 

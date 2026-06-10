@@ -7,7 +7,6 @@ including synonym expansion, special term tokenization, fuzzy matching,
 and category prioritization.
 """
 
-import sys
 from src.query_enhancement import (
     enhance_query,
     expand_query_with_synonyms,

@@ -5,7 +5,7 @@ This module provides functions to perform fuzzy matching on D&D terms.
 """
 
 import re
-from typing import List, Dict, Tuple, Set
+from typing import List, Tuple
 from difflib import get_close_matches
 
 # Common D&D terms that are frequently misspelled

@@ -1,11 +1,9 @@
 import os
 import sys
 import json
-import shutil
 from persistence.save_manager import SaveManager, generate_slug
 from game_engine.character import Character
 from game_engine.world import WorldState
-from game_engine.ability_system import AbilitySet
 from agents.subagents.faction_weaver import FactionWeaver
 from agents.subagents.world_keeper import WorldKeeper
 

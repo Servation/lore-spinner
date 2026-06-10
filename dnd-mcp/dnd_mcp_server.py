@@ -13,8 +13,6 @@ import os
 from mcp.server.fastmcp import FastMCP
 
 # Import from our reorganized structure
-from src.core import api_helpers
-from src.core import formatters
 from src.core import prompts
 from src.core import tools
 from src.core import resources

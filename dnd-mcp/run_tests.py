@@ -6,7 +6,6 @@ Run all tests for the D&D Knowledge Navigator.
 import os
 import sys
 import unittest
-import glob
 
 
 def run_tests():
